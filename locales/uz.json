@@ -1,0 +1,123 @@
+{
+  "common": {
+    "welcome": "Xush kelibsiz!",
+    "back": "Ortga",
+    "cancel": "Bekor qilish",
+    "submit": "Yuborish",
+    "confirm": "Tasdiqlash",
+    "yes": "Ha",
+    "no": "Yo'q",
+    "error": "Xatolik yuz berdi",
+    "success": "Muvaffaqiyatli bajarildi"
+  },
+  "language": {
+    "select": "Iltimos, botdan foydalanish uchun tilni tanlang:",
+    "uzbek": "O'zbek tili",
+    "russian": "Rus tili",
+    "changed": "Til muvaffaqiyatli o'zgartirildi"
+  },
+  "registration": {
+    "select_type": "Iltimos, foydalanuvchi turini tanlang:",
+    "individual": "Jismoniy shaxs",
+    "business": "Yuridik shaxs",
+    "government": "Davlat tashkiloti",
+    "moderator": "Moderator",
+    "admin": "Administrator",
+    "enter_full_name": "Iltimos, to'liq ismingizni kiriting:",
+    "enter_birth_date": "Iltimos, tug'ilgan sanangizni kiriting (KK.OO.YYYY formatda):",
+    "enter_phone": "Iltimos, telefon raqamingizni kiriting (+998XXXXXXXXX formatda):",
+    "enter_additional_phone": "Iltimos, qo'shimcha telefon raqamingizni kiriting (ixtiyoriy, o'tkazib yuborish uchun 'Yo'q' tugmasini bosing):",
+    "select_district": "Iltimos, tumaningizni tanlang:",
+    "enter_address": "Iltimos, tashkilot manzilini kiriting:",
+    "select_bank_district": "Iltimos, bank hisobingiz joylashgan tumanni tanlang:",
+    "select_organization": "Iltimos, davlat tashkilotini tanlang:",
+    "enter_position": "Iltimos, lavozimingizni kiriting:",
+    "enter_mfo": "Iltimos, MFO raqamingizni kiriting:",
+    "invalid_mfo": "MFO raqami noto'g'ri. Iltimos, qayta urinib ko'ring.",
+    "completed": "Ro'yxatdan o'tish muvaffaqiyatli yakunlandi!",
+    "invalid_date": "Sana formati noto'g'ri. Iltimos, KK.OO.YYYY formatida kiriting.",
+    "invalid_phone": "Telefon raqami noto'g'ri. Iltimos, +998XXXXXXXXX formatida kiriting."
+  },
+  "menu": {
+    "main": "Asosiy menyu:",
+    "user_menu": "Asosiy menyu. Quyidagi amallardan birini tanlang:",
+    "moderator_menu": "Moderator menyusi. Quyidagi amallardan birini tanlang:",
+    "admin_menu": "Administrator menyusi. Quyidagi amallardan birini tanlang:",
+    "send_appeal": "Murojaat yuborish",
+    "my_appeals": "Mening murojaatlarim",
+    "review_appeals": "Murojaatlarni ko'rib chiqish",
+    "all_active_appeals": "Barcha faol murojaatlar",
+    "statistics": "Statistika"
+  },
+  "appeal": {
+    "send": {
+      "start": "Yangi murojaat yuborish",
+      "enter_text": "Iltimos, murojaat matnini kiriting yoki hujjat yuklang:",
+      "attach_files": "Qo'shimcha fayllar yuklashingiz mumkin. Tayyor bo'lganingizda 'Yuborish' tugmasini bosing.",
+      "need_text": "Iltimos, murojaat matnini kiriting yoki matnli format hujjatini yuklang (PDF, Word va h.k.).",
+      "custom_number": "O'zingizning murojaat raqamingizni kiritmoqchimisiz?",
+      "enter_number": "Iltimos, murojaat raqamini kiriting:",
+      "success": "Murojaat muvaffaqiyatli yuborildi!\nMurojaat raqami: {{number}}",
+      "already_active": "Sizda faol murojaat mavjud. Yangi murojaat yuborish uchun moderatordan ruxsat so'rashingiz kerak.",
+      "request_sent": "Yangi murojaat yuborish uchun so'rov moderatorga yuborildi."
+    },
+    "list": {
+      "empty": "Sizda hozircha murojaatlar yo'q.",
+      "status_new": "Yangi",
+      "status_in_progress": "Ko'rib chiqilmoqda",
+      "status_closed": "Yopilgan",
+      "status_forwarded": "Yo'naltirilgan",
+      "status_overdue": "Muddati o'tgan"
+    },
+    "details": {
+      "number": "Raqam: {{number}}",
+      "status": "Holat: {{status}}",
+      "created": "Yaratilgan: {{date}}",
+      "due_date": "Tugash sanasi: {{date}}",
+      "district": "Tuman: {{district}}",
+      "text": "Matn:",
+      "attachments": "Biriktirilgan fayllar:",
+      "answer": "Javob:"
+    }
+  },
+  "moderator": {
+    "review": {
+      "title": "Murojaatlarni ko'rib chiqish",
+      "empty": "Ko'rib chiqish uchun murojaatlar yo'q.",
+      "close": "Yopish",
+      "forward": "Yo'naltirish",
+      "extend": "Muddatni uzaytirish",
+      "approve": "Tasdiqlash",
+      "reject": "Rad etish"
+    },
+    "close": {
+      "enter_answer": "Iltimos, javobingizni kiriting:",
+      "success": "Murojaat muvaffaqiyatli yopildi."
+    },
+    "forward": {
+      "select_district": "Iltimos, murojaat yo'naltirilish kerak bo'lgan tumanni tanlang:",
+      "success": "Murojaat muvaffaqiyatli yo'naltirildi.",
+      "notification": "Sizning {{number}} raqamli murojaatingiz {{district}} tumaniga yo'naltirildi."
+    },
+    "extend": {
+      "enter_date": "Iltimos, yangi tugash sanasini kiriting (KK.OO.YYYY formatda):",
+      "success": "Muddat muvaffaqiyatli uzaytirildi.",
+      "notification": "Sizning {{number}} raqamli murojaatingiz muddati {{date}} sanasiga qadar uzaytirildi."
+    },
+    "approval": {
+      "request": "Foydalanuvchi {{name}} ({{phone}}) yangi murojaat yuborish uchun ruxsat so'ramoqda.",
+      "approved": "So'rov tasdiqlandi. Endi yangi murojaat yuborishingiz mumkin.",
+      "rejected": "So'rov rad etildi."
+    }
+  },
+  "notification": {
+    "new_appeal": "Yangi murojaat: {{number}}\nFoydalanuvchi: {{name}}\nTugash sanasi: {{date}}",
+    "reminder": "Eslatma: {{number}} raqamli murojaatning muddati {{days}} kundan keyin tugaydi.",
+    "overdue": "Diqqat! {{number}} raqamli murojaatning muddati tugagan!"
+  },
+  "report": {
+    "generating": "Hisobot tayyorlanmoqda...",
+    "ready": "Hisobot tayyor.",
+    "error": "Hisobot tayyorlashda xatolik yuz berdi."
+  }
+}
