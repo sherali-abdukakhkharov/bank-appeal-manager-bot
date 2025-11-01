@@ -131,18 +131,18 @@ export function validateAddress(address: string): {
 }
 
 /**
- * Validate MFO code format (5 digits)
+ * Validate MFO code format (5-6 alphanumeric characters)
  */
 export function validateMFOFormat(mfo: string): {
   valid: boolean;
   error?: string;
 } {
-  const mfoRegex = /^\d{5}$/;
+  const mfoRegex = /^[0-9A-Za-z]{5,6}$/;
 
   if (!mfoRegex.test(mfo)) {
     return {
       valid: false,
-      error: "MFO code must be 5 digits",
+      error: "MFO code must be 5-6 alphanumeric characters",
     };
   }
 
