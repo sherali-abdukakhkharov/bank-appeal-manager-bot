@@ -18,7 +18,9 @@
     "migrate:rollback": "knex migrate:rollback --knexfile src/database/knexfile.ts",
     "seed:make": "knex seed:make --knexfile src/database/knexfile.ts -x ts",
     "seed:run": "knex seed:run --knexfile src/database/knexfile.ts",
-    "db:setup": "npm run migrate:latest && npm run seed:run"
+    "db:clear": "npx tsx src/database/scripts/clear-db.ts",
+    "db:setup": "npm run migrate:latest && npm run seed:run",
+    "db:reset": "npm run db:clear && npm run db:setup"
   },
   "dependencies": {
     "@grammyjs/hydrate": "^1.4.1",
