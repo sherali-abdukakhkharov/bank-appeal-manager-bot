@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { BotContext } from "../../../common/types/bot.types";
 import { I18nService } from "../../i18n/services/i18n.service";
 import { UserService } from "../../user/services/user.service";
@@ -318,6 +318,7 @@ export class NotificationService {
   async notifyModeratorsAboutApprovalRequest(
     user: User,
     districtId: number,
+    requestId: number,
   ): Promise<void> {
     if (!this.bot) {
       this.logger.warn("Bot instance not set, cannot send notifications");
@@ -342,12 +343,24 @@ export class NotificationService {
                 `📞 Телефон: ${user.phone}\n\n` +
                 `Пользователь запрашивает разрешение на отправку нового обращения (есть активное обращение).`;
 
+          // Create inline keyboard with Approve/Reject buttons
+          const keyboard = new InlineKeyboard()
+            .text(
+              moderator.language === "uz" ? "✅ Ruxsat berish" : "✅ Одобрить",
+              `approve_request_${requestId}`,
+            )
+            .text(
+              moderator.language === "uz" ? "❌ Rad etish" : "❌ Отклонить",
+              `reject_request_${requestId}`,
+            );
+
           await this.bot.api.sendMessage(moderator.telegram_id, message, {
             parse_mode: "Markdown",
+            reply_markup: keyboard,
           });
 
           this.logger.log(
-            `Notification sent to moderator ${moderator.id} about approval request from user ${user.id}`,
+            `Notification sent to moderator ${moderator.id} about approval request ${requestId} from user ${user.id}`,
           );
         } catch (error) {
           this.logger.error(
@@ -361,6 +374,40 @@ export class NotificationService {
         "Error notifying moderators about approval request:",
         error,
       );
+    }
+  }
+
+  /**
+   * Notify user about approval decision
+   */
+  async notifyUserAboutApprovalDecision(
+    user: User,
+    approved: boolean,
+    reason?: string,
+  ): Promise<void> {
+    if (!this.bot) {
+      this.logger.warn("Bot instance not set, cannot send notifications");
+      return;
+    }
+
+    try {
+      const message = approved
+        ? user.language === "uz"
+          ? `✅ *Ruxsat berildi*\n\nYangi murojaat yuborish uchun ruxsat berildi. Endi "Murojaat yuborish" tugmasini bosishingiz mumkin.`
+          : `✅ *Разрешение одобрено*\n\nВам разрешено отправить новое обращение. Теперь вы можете нажать кнопку "Отправить обращение".`
+        : user.language === "uz"
+          ? `❌ *Ruxsat rad etildi*\n\n${reason ? `Sabab: ${reason}\n\n` : ""}Yangi murojaat yuborish uchun ruxsat berilmadi. Iltimos, faol murojaatingiz yopilgunga qadar kuting.`
+          : `❌ *Запрос отклонен*\n\n${reason ? `Причина: ${reason}\n\n` : ""}Вам не разрешено отправить новое обращение. Пожалуйста, дождитесь закрытия вашего активного обращения.`;
+
+      await this.bot.api.sendMessage(user.telegram_id, message, {
+        parse_mode: "Markdown",
+      });
+
+      this.logger.log(
+        `Notification sent to user ${user.id} about approval decision: ${approved ? "approved" : "rejected"}`,
+      );
+    } catch (error) {
+      this.logger.error("Error notifying user about approval decision:", error);
     }
   }
 }

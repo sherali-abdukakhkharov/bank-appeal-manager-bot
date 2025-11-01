@@ -130,6 +130,15 @@ export class BotService implements OnModuleInit {
       }
     });
 
+    this.bot.command("skip", async (ctx) => {
+      const { step } = ctx.session;
+
+      // Handle rejection reason skip
+      if (step === "reject_request_reason") {
+        await this.handleRejectReason(ctx, "");
+      }
+    });
+
     // Secret development command to switch roles (keeps appeals and core data)
     this.bot.command("reset_account", async (ctx) => {
       const telegramId = ctx.from!.id;
@@ -369,6 +378,18 @@ export class BotService implements OnModuleInit {
       await this.moderatorHandler.exportToExcel(ctx, districtId);
     });
 
+    // Approval Request - Approve
+    this.bot.callbackQuery(/^approve_request_(\d+)$/, async (ctx) => {
+      const requestId = parseInt(ctx.match[1]);
+      await this.handleApproveRequest(ctx, requestId);
+    });
+
+    // Approval Request - Reject
+    this.bot.callbackQuery(/^reject_request_(\d+)$/, async (ctx) => {
+      const requestId = parseInt(ctx.match[1]);
+      await this.handleRejectRequest(ctx, requestId);
+    });
+
     // ==================== CONTACT MESSAGE HANDLERS ====================
 
     this.bot.on("message:contact", async (ctx) => {
@@ -451,8 +472,7 @@ export class BotService implements OnModuleInit {
       }
       if (text === "📝 Murojaatni ko'rib chiqish" || text === "📝 Рассмотреть обращение") {
         ctx.session.step = "main_menu";
-        // TODO: Implement admin review appeal
-        await ctx.reply("📝 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+        await this.moderatorHandler.showReviewAppeals(ctx);
         return;
       }
 
@@ -535,6 +555,11 @@ export class BotService implements OnModuleInit {
           await this.moderatorHandler.handleExtendDueDate(ctx, text);
           break;
 
+        // Rejection reason input
+        case "reject_request_reason":
+          await this.handleRejectReason(ctx, text);
+          break;
+
         case "main_menu":
         case null:
         case undefined:
@@ -607,6 +632,184 @@ export class BotService implements OnModuleInit {
       const errorContext = err.ctx as BotContext;
       BotErrorLogger.logError(err.error, errorContext);
     });
+  }
+
+  /**
+   * Handle approve approval request
+   */
+  private async handleApproveRequest(ctx: BotContext, requestId: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    try {
+      // Get moderator
+      const moderator = await this.userService.findByTelegramId(telegramId);
+      if (!moderator || !["moderator", "admin"].includes(moderator.type || "")) {
+        await ctx.editMessageText(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Get approval request
+      const request = await this.appealService.getApprovalRequestById(requestId);
+      if (!request) {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "So'rov topilmadi"
+            : "Запрос не найден"
+        );
+        return;
+      }
+
+      // Check if already processed
+      if (request.status !== "pending") {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "Bu so'rov allaqachon ko'rib chiqilgan"
+            : "Этот запрос уже обработан"
+        );
+        return;
+      }
+
+      // Approve request
+      await this.appealService.approveAppealRequest(requestId, moderator.id);
+
+      // Update message
+      await ctx.editMessageText(
+        language === "uz"
+          ? "✅ Ruxsat berildi. Foydalanuvchi xabardor qilindi."
+          : "✅ Одобрено. Пользователь уведомлен."
+      );
+
+      // Notify user
+      const user = await this.userService.findById(request.user_id);
+      if (user) {
+        await this.notificationService.notifyUserAboutApprovalDecision(user, true);
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.editMessageText(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Handle reject approval request
+   */
+  private async handleRejectRequest(ctx: BotContext, requestId: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    try {
+      // Get moderator
+      const moderator = await this.userService.findByTelegramId(telegramId);
+      if (!moderator || !["moderator", "admin"].includes(moderator.type || "")) {
+        await ctx.editMessageText(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Get approval request
+      const request = await this.appealService.getApprovalRequestById(requestId);
+      if (!request) {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "So'rov topilmadi"
+            : "Запрос не найден"
+        );
+        return;
+      }
+
+      // Check if already processed
+      if (request.status !== "pending") {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "Bu so'rov allaqachon ko'rib chiqilgan"
+            : "Этот запрос уже обработан"
+        );
+        return;
+      }
+
+      // Store request ID in session for optional reason input
+      ctx.session.data.rejectionRequestId = requestId;
+      ctx.session.step = "reject_request_reason";
+
+      // Ask for optional reason
+      await ctx.editMessageText(
+        language === "uz"
+          ? "Rad etish sababini yozing (ixtiyoriy) yoki /skip buyrug'ini yuboring:"
+          : "Напишите причину отклонения (необязательно) или отправьте команду /skip:"
+      );
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.editMessageText(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Handle rejection reason input
+   */
+  private async handleRejectReason(ctx: BotContext, reason: string) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+    const requestId = ctx.session.data.rejectionRequestId;
+
+    if (!requestId) {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      // Get moderator
+      const moderator = await this.userService.findByTelegramId(telegramId);
+      if (!moderator || !["moderator", "admin"].includes(moderator.type || "")) {
+        await ctx.reply(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Get approval request
+      const request = await this.appealService.getApprovalRequestById(requestId);
+      if (!request) {
+        await ctx.reply(
+          language === "uz"
+            ? "So'rov topilmadi"
+            : "Запрос не найден"
+        );
+        return;
+      }
+
+      // Reject request with reason
+      await this.appealService.rejectAppealRequest(
+        requestId,
+        moderator.id,
+        reason.trim(),
+      );
+
+      // Clear session
+      ctx.session.data.rejectionRequestId = undefined;
+      ctx.session.step = "main_menu";
+
+      // Send confirmation
+      await ctx.reply(
+        language === "uz"
+          ? "❌ So'rov rad etildi. Foydalanuvchi xabardor qilindi."
+          : "❌ Запрос отклонен. Пользователь уведомлен."
+      );
+
+      // Notify user
+      const user = await this.userService.findById(request.user_id);
+      if (user) {
+        await this.notificationService.notifyUserAboutApprovalDecision(
+          user,
+          false,
+          reason.trim(),
+        );
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
   }
 
   getBot(): Bot<BotContext> {

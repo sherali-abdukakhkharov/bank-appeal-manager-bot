@@ -258,7 +258,7 @@ export class AppealHandler {
     }
 
     try {
-      await this.appealService.requestMultipleAppealApproval(user.id);
+      const request = await this.appealService.requestMultipleAppealApproval(user.id);
 
       await ctx.editMessageText(
         this.i18nService.t("appeal.send.request_sent", language),
@@ -268,6 +268,7 @@ export class AppealHandler {
       await this.notificationService.notifyModeratorsAboutApprovalRequest(
         user,
         user.district_id!,
+        request.id,
       );
     } catch (error) {
       BotErrorLogger.logError(error, ctx);

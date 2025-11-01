@@ -118,6 +118,36 @@ export class AppealRepository {
   }
 
   /**
+   * Find approval request by ID
+   */
+  async findApprovalRequestById(requestId: number): Promise<AppealApprovalRequest | null> {
+    const request = await this.db("appeal_approval_requests")
+      .where("id", requestId)
+      .first();
+
+    return request || null;
+  }
+
+  /**
+   * Update approval request status
+   */
+  async updateApprovalRequest(
+    requestId: number,
+    status: "approved" | "rejected",
+    moderatorId: number,
+    reason?: string,
+  ): Promise<void> {
+    await this.db("appeal_approval_requests")
+      .where("id", requestId)
+      .update({
+        status,
+        moderator_id: moderatorId,
+        reason: reason || null,
+        resolved_at: getDateInTashkent().toDate(),
+      });
+  }
+
+  /**
    * Find appeals by district
    */
   async findByDistrict(districtId: number, status?: string): Promise<Appeal[]> {

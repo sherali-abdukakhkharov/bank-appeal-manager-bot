@@ -75,14 +75,51 @@ export class AppealService {
   /**
    * Request approval for multiple appeals
    */
-  async requestMultipleAppealApproval(userId: number): Promise<void> {
+  async requestMultipleAppealApproval(userId: number) {
     // Check if already has pending request
     const existingRequest = await this.appealRepository.findPendingApprovalRequest(userId);
     if (existingRequest) {
       throw new Error("You already have a pending approval request");
     }
 
-    await this.appealRepository.createApprovalRequest(userId);
+    return await this.appealRepository.createApprovalRequest(userId);
+  }
+
+  /**
+   * Approve appeal request
+   */
+  async approveAppealRequest(
+    requestId: number,
+    moderatorId: number,
+  ): Promise<void> {
+    await this.appealRepository.updateApprovalRequest(
+      requestId,
+      "approved",
+      moderatorId,
+    );
+  }
+
+  /**
+   * Reject appeal request
+   */
+  async rejectAppealRequest(
+    requestId: number,
+    moderatorId: number,
+    reason?: string,
+  ): Promise<void> {
+    await this.appealRepository.updateApprovalRequest(
+      requestId,
+      "rejected",
+      moderatorId,
+      reason,
+    );
+  }
+
+  /**
+   * Get approval request by ID
+   */
+  async getApprovalRequestById(requestId: number) {
+    return await this.appealRepository.findApprovalRequestById(requestId);
   }
 
   /**
