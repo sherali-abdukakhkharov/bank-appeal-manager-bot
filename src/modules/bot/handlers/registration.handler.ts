@@ -575,7 +575,7 @@ export class RegistrationHandler {
     const validation = validateMFOFormat(text);
 
     if (!validation.valid) {
-      await ctx.reply(validation.error!);
+      await ctx.reply(this.i18nService.t("registration.invalid_mfo_format", language));
       return;
     }
 

@@ -33,6 +33,7 @@
     "select_organization": "Iltimos, davlat tashkilotini tanlang:",
     "enter_position": "Iltimos, lavozimingizni kiriting:",
     "enter_mfo": "Iltimos, MFO raqamingizni kiriting:",
+    "invalid_mfo_format": "MFO kodi 5-6 ta raqam yoki harflardan iborat bo'lishi kerak.",
     "invalid_mfo": "MFO raqami noto'g'ri. Iltimos, qayta urinib ko'ring.",
     "completed": "Ro'yxatdan o'tish muvaffaqiyatli yakunlandi!",
     "invalid_date": "Sana formati noto'g'ri. Iltimos, KK.OO.YYYY formatida kiriting.",
