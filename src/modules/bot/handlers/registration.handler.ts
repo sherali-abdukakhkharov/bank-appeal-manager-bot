@@ -22,6 +22,7 @@ import {
   convertDateForDatabase,
 } from "../../../common/utils/validation.utils";
 import { MenuHandler } from "./menu.handler";
+import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 
 export class RegistrationHandler {
   constructor(
@@ -623,26 +624,45 @@ export class RegistrationHandler {
     };
 
     try {
+      // Check if user already exists (e.g., after reset_account)
+      const existingUser = await this.userService.findByTelegramId(telegramId);
       let user: User;
 
-      if (data.userType === "business") {
-        // Create business user with business info
-        user = await this.userService.createBusinessUser(userDto, {
-          organization_address: data.organizationAddress!,
-          bank_account_district_id: data.bankAccountDistrictId!,
-        });
-      } else if (data.userType === "government") {
-        // Create government user with government info
-        user = await this.userService.createGovernmentUser(userDto, {
-          government_org_id: data.governmentOrgId!,
-          position: data.position!,
-        });
-      } else {
-        // Create individual, moderator, or admin user
-        user = await this.userService.createUser(userDto);
-      }
+      if (existingUser) {
+        // User exists (was reset), update instead of create
+        console.log("Updating existing user after reset:", existingUser.id);
 
-      console.log("User registered successfully:", user.id);
+        if (data.userType === "business") {
+          user = await this.userService.updateBusinessUser(existingUser.id, userDto, {
+            organization_address: data.organizationAddress!,
+            bank_account_district_id: data.bankAccountDistrictId!,
+          });
+        } else if (data.userType === "government") {
+          user = await this.userService.updateGovernmentUser(existingUser.id, userDto, {
+            government_org_id: data.governmentOrgId!,
+            position: data.position!,
+          });
+        } else {
+          user = await this.userService.updateUser(existingUser.id, userDto);
+        }
+      } else {
+        // New user, create
+        if (data.userType === "business") {
+          user = await this.userService.createBusinessUser(userDto, {
+            organization_address: data.organizationAddress!,
+            bank_account_district_id: data.bankAccountDistrictId!,
+          });
+        } else if (data.userType === "government") {
+          user = await this.userService.createGovernmentUser(userDto, {
+            government_org_id: data.governmentOrgId!,
+            position: data.position!,
+          });
+        } else {
+          user = await this.userService.createUser(userDto);
+        }
+
+        console.log("User registered successfully:", user.id);
+      }
 
       // Clear session data after successful registration
       ctx.session.data = {};
@@ -650,7 +670,7 @@ export class RegistrationHandler {
 
       return user;
     } catch (error) {
-      console.error("Error saving user:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return null;
     }

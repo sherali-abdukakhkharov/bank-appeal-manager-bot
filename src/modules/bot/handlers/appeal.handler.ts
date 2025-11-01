@@ -5,6 +5,9 @@ import { FileService } from "../../file/services/file.service";
 import { UserService } from "../../user/services/user.service";
 import { FileMetadata } from "../../../common/types/file.types";
 import { InlineKeyboard, Keyboard } from "grammy";
+import { formatDate } from "../../../common/utils/date.util";
+import { MenuHandler } from "./menu.handler";
+import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 
 export class AppealHandler {
   constructor(
@@ -12,7 +15,8 @@ export class AppealHandler {
     private appealService: AppealService,
     private fileService: FileService,
     private userService: UserService,
-  ) {}
+    private menuHandler: MenuHandler,
+  ) { }
 
   /**
    * Start appeal creation flow
@@ -174,6 +178,7 @@ export class AppealHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -218,9 +223,12 @@ export class AppealHandler {
         await ctx.reply(successMessage);
       }
 
+      // Show main menu
+      await this.menuHandler.showMainMenu(ctx, user);
+
       // TODO: Notify moderators of the target district
     } catch (error) {
-      console.error("Error creating appeal:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
   }
@@ -236,6 +244,7 @@ export class AppealHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -249,7 +258,7 @@ export class AppealHandler {
 
       // TODO: Notify moderators about approval request
     } catch (error) {
-      console.error("Error requesting approval:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(
         error instanceof Error ? error.message : this.i18nService.t("common.error", language),
       );
@@ -285,7 +294,7 @@ export class AppealHandler {
       const statusText = this.i18nService.t(`appeal.list.status_${appeal.status}`, language);
       message += `🔹 ${appeal.appeal_number}\n`;
       message += `   ${language === "uz" ? "Holat" : "Статус"}: ${statusText}\n`;
-      message += `   ${language === "uz" ? "Sana" : "Дата"}: ${new Date(appeal.created_at).toLocaleDateString()}\n\n`;
+      message += `   ${language === "uz" ? "Sana" : "Дата"}: ${formatDate(appeal.created_at)}\n\n`;
     }
 
     await ctx.reply(message);

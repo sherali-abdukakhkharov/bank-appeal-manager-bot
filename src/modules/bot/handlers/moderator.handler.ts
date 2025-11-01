@@ -5,7 +5,8 @@ import { UserService } from "../../user/services/user.service";
 import { DistrictService } from "../../district/services/district.service";
 import { FileService } from "../../file/services/file.service";
 import { InlineKeyboard } from "grammy";
-import dayjs from "dayjs";
+import { formatDate, formatDateTime, getDaysFromNow, getDateInTashkent, parseDate } from "../../../common/utils/date.util";
+import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 
 export class ModeratorHandler {
   constructor(
@@ -14,7 +15,7 @@ export class ModeratorHandler {
     private userService: UserService,
     private districtService: DistrictService,
     private fileService: FileService,
-  ) {}
+  ) { }
 
   /**
    * Show list of active appeals for moderator's district
@@ -25,12 +26,14 @@ export class ModeratorHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
 
     // Ensure user is moderator or admin
     if (!["moderator", "admin"].includes(user.type || "")) {
+      BotErrorLogger.logError('moderator or admin role not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -59,7 +62,7 @@ export class ModeratorHandler {
     const keyboard = new InlineKeyboard();
 
     for (const appeal of appeals) {
-      const daysLeft = dayjs(appeal.due_date).diff(dayjs(), "day");
+      const daysLeft = getDaysFromNow(appeal.due_date);
       const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
 
       // Get user info
@@ -68,7 +71,7 @@ export class ModeratorHandler {
 
       message += `${urgencyEmoji} *${appeal.appeal_number}*\n`;
       message += `   ${language === "uz" ? "Foydalanuvchi" : "Пользователь"}: ${userName}\n`;
-      message += `   ${language === "uz" ? "Muddat" : "Срок"}: ${dayjs(appeal.due_date).format("DD.MM.YYYY")} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
+      message += `   ${language === "uz" ? "Muddat" : "Срок"}: ${formatDate(appeal.due_date)} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
 
       // Add button for this appeal
       keyboard
@@ -100,12 +103,14 @@ export class ModeratorHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
 
     const appeal = await this.appealService.getAppealById(appealId);
     if (!appeal) {
+      BotErrorLogger.logError('appeal not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -115,6 +120,7 @@ export class ModeratorHandler {
       user.type === "moderator" &&
       appeal.district_id !== user.district_id
     ) {
+      BotErrorLogger.logError('appeal not relate to this moderator', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -123,7 +129,7 @@ export class ModeratorHandler {
     const appealUser = await this.userService.findById(appeal.user_id);
 
     // Format appeal details
-    const daysLeft = dayjs(appeal.due_date).diff(dayjs(), "day");
+    const daysLeft = getDaysFromNow(appeal.due_date);
     const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
 
     let message = language === "uz" ? "📄 *Murojaat tafsilotlari*\n\n" : "📄 *Детали обращения*\n\n";
@@ -131,8 +137,8 @@ export class ModeratorHandler {
     message += `*${language === "uz" ? "Holat" : "Статус"}:* ${this.i18nService.t(`appeal.list.status_${appeal.status}`, language)}\n`;
     message += `*${language === "uz" ? "Foydalanuvchi" : "Пользователь"}:* ${appealUser?.full_name}\n`;
     message += `*${language === "uz" ? "Telefon" : "Телефон"}:* ${appealUser?.phone}\n`;
-    message += `*${language === "uz" ? "Yaratilgan" : "Создано"}:* ${dayjs(appeal.created_at).format("DD.MM.YYYY HH:mm")}\n`;
-    message += `*${language === "uz" ? "Muddat" : "Срок"}:* ${urgencyEmoji} ${dayjs(appeal.due_date).format("DD.MM.YYYY")} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
+    message += `*${language === "uz" ? "Yaratilgan" : "Создано"}:* ${formatDateTime(appeal.created_at)}\n`;
+    message += `*${language === "uz" ? "Muddat" : "Срок"}:* ${urgencyEmoji} ${formatDate(appeal.due_date)} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
 
     if (appeal.text) {
       message += `*${language === "uz" ? "Matn" : "Текст"}:*\n${appeal.text}\n\n`;
@@ -173,11 +179,28 @@ export class ModeratorHandler {
     if (appeal.file_jsons && appeal.file_jsons.length > 0) {
       for (const file of appeal.file_jsons) {
         try {
-          await ctx.api.sendDocument(ctx.chat!.id, file.file_id, {
-            caption: file.file_name || undefined,
-          });
+          const caption = file.file_name || undefined;
+
+          switch (file.file_type) {
+            case "photo":
+              await ctx.api.sendPhoto(ctx.chat!.id, file.file_id, { caption });
+              break;
+            case "video":
+              await ctx.api.sendVideo(ctx.chat!.id, file.file_id, { caption });
+              break;
+            case "audio":
+              await ctx.api.sendAudio(ctx.chat!.id, file.file_id, { caption });
+              break;
+            case "voice":
+              await ctx.api.sendVoice(ctx.chat!.id, file.file_id, { caption });
+              break;
+            case "document":
+            default:
+              await ctx.api.sendDocument(ctx.chat!.id, file.file_id, { caption });
+              break;
+          }
         } catch (error) {
-          console.error("Error sending file:", error);
+          BotErrorLogger.logError(error, ctx);
         }
       }
     }
@@ -260,12 +283,14 @@ export class ModeratorHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
 
     const appealId = data.moderatorAppealId;
     if (!appealId) {
+      BotErrorLogger.logError('closing appeal_id not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -293,7 +318,7 @@ export class ModeratorHandler {
 
       // TODO: Notify user about closed appeal with answer
     } catch (error) {
-      console.error("Error closing appeal:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
   }
@@ -309,6 +334,7 @@ export class ModeratorHandler {
     // Get all districts except current
     const appeal = await this.appealService.getAppealById(appealId);
     if (!appeal) {
+      BotErrorLogger.logError('appeal not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -352,6 +378,7 @@ export class ModeratorHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -371,7 +398,7 @@ export class ModeratorHandler {
       // TODO: Notify new district moderators
       // TODO: Notify user about forwarding
     } catch (error) {
-      console.error("Error forwarding appeal:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
   }
@@ -387,7 +414,16 @@ export class ModeratorHandler {
     ctx.session.data.moderatorAppealId = appealId;
     ctx.session.step = "moderator_extend_due_date";
 
-    await ctx.editMessageText(
+    // Delete the message with buttons to avoid confusion
+    try {
+      await ctx.deleteMessage();
+    } catch (error) {
+      // If delete fails (message too old), just continue
+      BotErrorLogger.logError(error, ctx);
+    }
+
+    // Send a new clear message asking for the new due date
+    await ctx.reply(
       language === "uz"
         ? "📅 Yangi muddatni kiriting (format: DD.MM.YYYY):\n\nMasalan: 15.12.2025"
         : "📅 Введите новый срок (формат: DD.MM.YYYY):\n\nНапример: 15.12.2025",
@@ -403,12 +439,14 @@ export class ModeratorHandler {
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
 
     const appealId = data.moderatorAppealId;
     if (!appealId) {
+      BotErrorLogger.logError('appeal id not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
@@ -424,7 +462,7 @@ export class ModeratorHandler {
       return;
     }
 
-    const newDueDate = dayjs(dateString, "DD.MM.YYYY");
+    const newDueDate = parseDate(dateString);
     if (!newDueDate.isValid()) {
       await ctx.reply(
         language === "uz"
@@ -435,7 +473,7 @@ export class ModeratorHandler {
     }
 
     // Check if new date is in the future
-    if (newDueDate.isBefore(dayjs(), "day")) {
+    if (newDueDate.isBefore(getDateInTashkent(), "day")) {
       await ctx.reply(
         language === "uz"
           ? "❌ Muddat kelajak sanada bo'lishi kerak."
@@ -457,13 +495,97 @@ export class ModeratorHandler {
 
       await ctx.reply(
         language === "uz"
-          ? `✅ Muddat ${newDueDate.format("DD.MM.YYYY")} gacha uzaytirildi.`
-          : `✅ Срок продлен до ${newDueDate.format("DD.MM.YYYY")}.`,
+          ? `✅ Muddat ${formatDate(newDueDate.toDate())} gacha uzaytirildi.`
+          : `✅ Срок продлен до ${formatDate(newDueDate.toDate())}.`,
       );
+
+      // Resend the appeal details with updated due date
+      const appeal = await this.appealService.getAppealById(appealId);
+      if (appeal) {
+        // Get appeal user info
+        const appealUser = await this.userService.findById(appeal.user_id);
+
+        // Format appeal details
+        const daysLeft = getDaysFromNow(appeal.due_date);
+        const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+
+        let message = language === "uz" ? "📄 *Murojaat tafsilotlari*\n\n" : "📄 *Детали обращения*\n\n";
+        message += `*${language === "uz" ? "Raqam" : "Номер"}:* ${appeal.appeal_number}\n`;
+        message += `*${language === "uz" ? "Holat" : "Статус"}:* ${this.i18nService.t(`appeal.list.status_${appeal.status}`, language)}\n`;
+        message += `*${language === "uz" ? "Foydalanuvchi" : "Пользователь"}:* ${appealUser?.full_name}\n`;
+        message += `*${language === "uz" ? "Telefon" : "Телефон"}:* ${appealUser?.phone}\n`;
+        message += `*${language === "uz" ? "Yaratilgan" : "Создано"}:* ${formatDateTime(appeal.created_at)}\n`;
+        message += `*${language === "uz" ? "Muddat" : "Срок"}:* ${urgencyEmoji} ${formatDate(appeal.due_date)} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
+
+        if (appeal.text) {
+          message += `*${language === "uz" ? "Matn" : "Текст"}:*\n${appeal.text}\n\n`;
+        }
+
+        if (appeal.file_jsons && appeal.file_jsons.length > 0) {
+          message += `*${language === "uz" ? "Fayllar" : "Файлы"}:* ${appeal.file_jsons.length} ${language === "uz" ? "ta" : "шт."}\n`;
+        }
+
+        // Create action buttons
+        const keyboard = new InlineKeyboard()
+          .text(
+            language === "uz" ? "✅ Yopish" : "✅ Закрыть",
+            `close_appeal_${appeal.id}`,
+          )
+          .row()
+          .text(
+            language === "uz" ? "➡️ Yo'naltirish" : "➡️ Переслать",
+            `forward_appeal_${appeal.id}`,
+          )
+          .row()
+          .text(
+            language === "uz" ? "📅 Muddatni uzaytirish" : "📅 Продлить срок",
+            `extend_appeal_${appeal.id}`,
+          )
+          .row()
+          .text(
+            language === "uz" ? "◀️ Ortga" : "◀️ Назад",
+            "menu_review_appeals",
+          );
+
+        await ctx.reply(message, {
+          reply_markup: keyboard,
+          parse_mode: "Markdown",
+        });
+
+        // Send appeal files if any
+        if (appeal.file_jsons && appeal.file_jsons.length > 0) {
+          for (const file of appeal.file_jsons) {
+            try {
+              const caption = file.file_name || undefined;
+
+              switch (file.file_type) {
+                case "photo":
+                  await ctx.api.sendPhoto(ctx.chat!.id, file.file_id, { caption });
+                  break;
+                case "video":
+                  await ctx.api.sendVideo(ctx.chat!.id, file.file_id, { caption });
+                  break;
+                case "audio":
+                  await ctx.api.sendAudio(ctx.chat!.id, file.file_id, { caption });
+                  break;
+                case "voice":
+                  await ctx.api.sendVoice(ctx.chat!.id, file.file_id, { caption });
+                  break;
+                case "document":
+                default:
+                  await ctx.api.sendDocument(ctx.chat!.id, file.file_id, { caption });
+                  break;
+              }
+            } catch (error) {
+              BotErrorLogger.logError(error, ctx);
+            }
+          }
+        }
+      }
 
       // TODO: Notify user about extension
     } catch (error) {
-      console.error("Error extending due date:", error);
+      BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
   }

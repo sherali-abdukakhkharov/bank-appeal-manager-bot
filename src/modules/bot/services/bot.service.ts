@@ -12,6 +12,7 @@ import { RegistrationHandler } from "../handlers/registration.handler";
 import { MenuHandler } from "../handlers/menu.handler";
 import { AppealHandler } from "../handlers/appeal.handler";
 import { ModeratorHandler } from "../handlers/moderator.handler";
+import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -28,7 +29,7 @@ export class BotService implements OnModuleInit {
     private districtService: DistrictService,
     private appealService: AppealService,
     private fileService: FileService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     const token = this.configService.get<string>("bot.token");
@@ -67,6 +68,7 @@ export class BotService implements OnModuleInit {
       this.appealService,
       this.fileService,
       this.userService,
+      this.menuHandler,
     );
     this.moderatorHandler = new ModeratorHandler(
       this.i18nService,
@@ -356,6 +358,7 @@ export class BotService implements OnModuleInit {
           );
           break;
         default:
+          BotErrorLogger.logError('step not found on register', ctx);
           await ctx.reply(
             this.i18nService.t("common.error", ctx.session.language),
           );
@@ -368,40 +371,44 @@ export class BotService implements OnModuleInit {
       const { step } = ctx.session;
       const text = ctx.message.text;
 
-      // Handle menu button clicks (when in main_menu step)
-      if (step === "main_menu") {
-        // User menu buttons
-        if (text === "📝 Murojaat yuborish" || text === "📝 Отправить обращение") {
-          await this.appealHandler.startAppealCreation(ctx);
-          return;
-        }
-        if (text === "📋 Mening murojaatlarim" || text === "📋 Мои обращения") {
-          await this.appealHandler.showMyAppeals(ctx);
-          return;
-        }
+      // Handle menu button clicks first (regardless of step to handle sessions after restart)
+      // User menu buttons
+      if (text === "📝 Murojaat yuborish" || text === "📝 Отправить обращение") {
+        ctx.session.step = "main_menu";
+        await this.appealHandler.startAppealCreation(ctx);
+        return;
+      }
+      if (text === "📋 Mening murojaatlarim" || text === "📋 Мои обращения") {
+        ctx.session.step = "main_menu";
+        await this.appealHandler.showMyAppeals(ctx);
+        return;
+      }
 
-        // Moderator menu buttons
-        if (text === "📝 Murojaatlarni ko'rib chiqish" || text === "📝 Рассмотреть обращения") {
-          await this.moderatorHandler.showReviewAppeals(ctx);
-          return;
-        }
-        if (text === "📊 Statistika" || text === "📊 Статистика") {
-          // TODO: Implement statistics
-          await ctx.reply("📊 Statistika tez orada ishga tushadi / Статистика скоро будет доступна");
-          return;
-        }
+      // Moderator menu buttons
+      if (text === "📝 Murojaatlarni ko'rib chiqish" || text === "📝 Рассмотреть обращения") {
+        ctx.session.step = "main_menu";
+        await this.moderatorHandler.showReviewAppeals(ctx);
+        return;
+      }
+      if (text === "📊 Statistika" || text === "📊 Статистика") {
+        ctx.session.step = "main_menu";
+        // TODO: Implement statistics
+        await ctx.reply("📊 Statistika tez orada ishga tushadi / Статистика скоро будет доступна");
+        return;
+      }
 
-        // Admin menu buttons
-        if (text === "📋 Barcha faol murojaatlar" || text === "📋 Все активные обращения") {
-          // TODO: Implement admin view all appeals
-          await ctx.reply("📋 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
-          return;
-        }
-        if (text === "📝 Murojaatni ko'rib chiqish" || text === "📝 Рассмотреть обращение") {
-          // TODO: Implement admin review appeal
-          await ctx.reply("📝 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
-          return;
-        }
+      // Admin menu buttons
+      if (text === "📋 Barcha faol murojaatlar" || text === "📋 Все активные обращения") {
+        ctx.session.step = "main_menu";
+        // TODO: Implement admin view all appeals
+        await ctx.reply("📋 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+        return;
+      }
+      if (text === "📝 Murojaatni ko'rib chiqish" || text === "📝 Рассмотреть обращение") {
+        ctx.session.step = "main_menu";
+        // TODO: Implement admin review appeal
+        await ctx.reply("📝 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+        return;
       }
 
       // Route based on current step
@@ -483,8 +490,15 @@ export class BotService implements OnModuleInit {
           await this.moderatorHandler.handleExtendDueDate(ctx, text);
           break;
 
+        case "main_menu":
+        case null:
+        case undefined:
+          // User is at main menu or session was reset - do nothing, they should use menu buttons
+          break;
+
         default:
-          // No active registration step
+          // Unknown step - log for debugging
+          BotErrorLogger.logError(`Unknown step: ${step}`, ctx);
           await ctx.reply(
             this.i18nService.t("common.error", ctx.session.language),
           );
@@ -543,9 +557,10 @@ export class BotService implements OnModuleInit {
       }
     });
 
-    // Error handler
+    // Error handler with comprehensive logging
     this.bot.catch((err) => {
-      console.error("Bot error:", err);
+      const errorContext = err.ctx as BotContext;
+      BotErrorLogger.logError(err.error, errorContext);
     });
   }
 

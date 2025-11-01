@@ -19,6 +19,10 @@ export class UserService {
     return await this.userRepository.create(dto);
   }
 
+  async updateUser(userId: number, dto: Partial<CreateUserDto>): Promise<User> {
+    return await this.userRepository.update(userId, dto);
+  }
+
   async createBusinessUser(
     userDto: CreateUserDto,
     businessInfo: Omit<UserBusinessInfo, "user_id">,
@@ -33,6 +37,21 @@ export class UserService {
     return user;
   }
 
+  async updateBusinessUser(
+    userId: number,
+    userDto: Partial<CreateUserDto>,
+    businessInfo: Omit<UserBusinessInfo, "user_id">,
+  ): Promise<User> {
+    const user = await this.userRepository.update(userId, userDto);
+
+    await this.userRepository.createBusinessInfo({
+      user_id: userId,
+      ...businessInfo,
+    });
+
+    return user;
+  }
+
   async createGovernmentUser(
     userDto: CreateUserDto,
     govInfo: Omit<UserGovernmentInfo, "user_id">,
@@ -41,6 +60,21 @@ export class UserService {
 
     await this.userRepository.createGovernmentInfo({
       user_id: user.id,
+      ...govInfo,
+    });
+
+    return user;
+  }
+
+  async updateGovernmentUser(
+    userId: number,
+    userDto: Partial<CreateUserDto>,
+    govInfo: Omit<UserGovernmentInfo, "user_id">,
+  ): Promise<User> {
+    const user = await this.userRepository.update(userId, userDto);
+
+    await this.userRepository.createGovernmentInfo({
+      user_id: userId,
       ...govInfo,
     });
 

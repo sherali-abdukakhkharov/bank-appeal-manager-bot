@@ -14,19 +14,23 @@ export class AppealRepository {
    * Create a new appeal
    */
   async create(dto: CreateAppealDto, appealNumber: string, dueDate: Date): Promise<Appeal> {
+    // For JSONB columns, we need to use raw SQL to properly cast the JSON
+    const fileJsonsValue = dto.file_jsons && dto.file_jsons.length > 0
+      ? this.db.raw('?::jsonb', [JSON.stringify(dto.file_jsons)])
+      : null;
+
     const [appeal] = await this.db("appeals")
       .insert({
         appeal_number: appealNumber,
         user_id: dto.user_id,
         district_id: dto.district_id,
         text: dto.text,
-        file_jsons: dto.file_jsons && dto.file_jsons.length > 0 ? dto.file_jsons : null,
+        file_jsons: fileJsonsValue,
         status: "new",
         due_date: dueDate,
       })
       .returning("*");
 
-    // Knex automatically handles JSONB serialization, no need to parse
     return appeal;
   }
 
@@ -158,12 +162,17 @@ export class AppealRepository {
           updated_at: new Date(),
         });
 
+      // For JSONB columns, use raw SQL to properly cast the JSON
+      const answerFilesValue = answerFiles.length > 0
+        ? trx.raw('?::jsonb', [JSON.stringify(answerFiles)])
+        : null;
+
       // Create appeal answer
       await trx("appeal_answers").insert({
         appeal_id: appealId,
         moderator_id: moderatorId,
         text: answerText,
-        file_jsons: answerFiles.length > 0 ? answerFiles : null,
+        file_jsons: answerFilesValue,
       });
 
       // Create log entry

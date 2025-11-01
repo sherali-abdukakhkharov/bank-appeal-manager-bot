@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import knex, { Knex } from "knex";
+import { attachQueryInterceptor } from "./query-interceptor";
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -34,6 +35,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         extension: "ts",
       },
     });
+
+    // Attach query interceptor for debugging
+    attachQueryInterceptor(this.knexInstance, 'main-db');
 
     console.log("Database connection established");
   }

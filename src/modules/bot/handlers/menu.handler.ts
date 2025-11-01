@@ -1,10 +1,11 @@
+import { BotErrorLogger } from "@/common/utils/bot-error-logger.util";
 import { BotContext } from "../../../common/types/bot.types";
 import { I18nService } from "../../i18n/services/i18n.service";
 import { User } from "../../user/interfaces/user.interface";
 import { Keyboard } from "grammy";
 
 export class MenuHandler {
-  constructor(private i18nService: I18nService) {}
+  constructor(private i18nService: I18nService) { }
 
   /**
    * Show main menu based on user type
@@ -34,6 +35,7 @@ export class MenuHandler {
         break;
 
       default:
+        BotErrorLogger.logError('menu not found', ctx);
         menuText = this.i18nService.t("common.error", language);
         keyboard = new Keyboard();
     }

@@ -28,6 +28,14 @@ export class UserRepository {
     return user;
   }
 
+  async update(userId: number, dto: Partial<CreateUserDto>): Promise<User> {
+    const [user] = await this.db("users")
+      .where("id", userId)
+      .update(dto)
+      .returning("*");
+    return user;
+  }
+
   async createBusinessInfo(data: UserBusinessInfo): Promise<void> {
     await this.db("user_business_info").insert(data);
   }
