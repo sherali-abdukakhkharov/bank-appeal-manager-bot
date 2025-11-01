@@ -42,7 +42,9 @@ export type RegistrationStep =
   // Moderator actions
   | "moderator_close_appeal_text"
   | "moderator_close_appeal_files"
-  | "moderator_extend_due_date";
+  | "moderator_extend_due_date"
+  // Approval requests
+  | "reject_request_reason";
 
 /**
  * User types
@@ -105,6 +107,9 @@ export interface SessionData {
       mime_type?: string;
       file_type: "document" | "photo" | "video" | "audio" | "voice";
     }>;
+
+    // Approval requests
+    rejectionRequestId?: number;
   };
 }
 
