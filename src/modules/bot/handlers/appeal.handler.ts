@@ -4,7 +4,7 @@ import { AppealService } from "../../appeal/services/appeal.service";
 import { FileService } from "../../file/services/file.service";
 import { UserService } from "../../user/services/user.service";
 import { FileMetadata } from "../../../common/types/file.types";
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, Keyboard } from "grammy";
 
 export class AppealHandler {
   constructor(
@@ -117,10 +117,11 @@ export class AppealHandler {
 
     ctx.session.step = "appeal_text_input";
 
-    const keyboard = new InlineKeyboard().text(
-      language === "uz" ? "✅ Yuborish" : "✅ Отправить",
-      "submit_appeal",
-    );
+    const submitText = language === "uz" ? "✅ Yuborish" : "✅ Отправить";
+    const keyboard = new Keyboard()
+      .text(submitText)
+      .resized()
+      .persistent();
 
     await ctx.reply(this.i18nService.t("appeal.send.attach_files", language), {
       reply_markup: keyboard,
@@ -166,7 +167,10 @@ export class AppealHandler {
     const telegramId = ctx.from!.id;
     const { language, data } = ctx.session;
 
-    await ctx.answerCallbackQuery();
+    // Answer callback query if it's from inline button (backward compatibility)
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery();
+    }
 
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
@@ -202,12 +206,17 @@ export class AppealHandler {
       ctx.session.data.appealCustomNumber = undefined;
       ctx.session.step = "main_menu";
 
-      await ctx.editMessageText(
-        this.i18nService.t("appeal.send.success", language).replace(
-          "{{number}}",
-          appeal.appeal_number,
-        ),
+      const successMessage = this.i18nService.t("appeal.send.success", language).replace(
+        "{{number}}",
+        appeal.appeal_number,
       );
+
+      // Use editMessageText if callback query, otherwise reply
+      if (ctx.callbackQuery) {
+        await ctx.editMessageText(successMessage);
+      } else {
+        await ctx.reply(successMessage);
+      }
 
       // TODO: Notify moderators of the target district
     } catch (error) {

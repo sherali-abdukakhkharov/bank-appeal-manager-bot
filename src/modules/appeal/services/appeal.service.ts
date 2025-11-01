@@ -98,4 +98,60 @@ export class AppealService {
   async getAppealsByDistrict(districtId: number, status?: string): Promise<Appeal[]> {
     return await this.appealRepository.findByDistrict(districtId, status);
   }
+
+  /**
+   * Get appeals by district and status, sorted by due date
+   */
+  async getAppealsByDistrictAndStatus(
+    districtId: number,
+    status: string,
+  ): Promise<Appeal[]> {
+    return await this.appealRepository.findByDistrictAndStatus(
+      districtId,
+      status,
+    );
+  }
+
+  /**
+   * Close appeal with moderator answer
+   */
+  async closeAppeal(
+    appealId: number,
+    moderatorId: number,
+    answerText: string,
+    answerFiles: any[],
+  ): Promise<void> {
+    await this.appealRepository.closeAppeal(
+      appealId,
+      moderatorId,
+      answerText,
+      answerFiles,
+    );
+  }
+
+  /**
+   * Forward appeal to another district
+   */
+  async forwardAppeal(
+    appealId: number,
+    targetDistrictId: number,
+    moderatorId: number,
+  ): Promise<void> {
+    await this.appealRepository.forwardAppeal(
+      appealId,
+      targetDistrictId,
+      moderatorId,
+    );
+  }
+
+  /**
+   * Extend appeal due date
+   */
+  async extendDueDate(
+    appealId: number,
+    newDueDate: Date,
+    moderatorId: number,
+  ): Promise<void> {
+    await this.appealRepository.extendDueDate(appealId, newDueDate, moderatorId);
+  }
 }

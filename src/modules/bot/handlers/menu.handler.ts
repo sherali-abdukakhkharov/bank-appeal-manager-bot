@@ -1,7 +1,7 @@
 import { BotContext } from "../../../common/types/bot.types";
 import { I18nService } from "../../i18n/services/i18n.service";
 import { User } from "../../user/interfaces/user.interface";
-import { InlineKeyboard } from "grammy";
+import { Keyboard } from "grammy";
 
 export class MenuHandler {
   constructor(private i18nService: I18nService) {}
@@ -12,7 +12,7 @@ export class MenuHandler {
   async showMainMenu(ctx: BotContext, user: User) {
     const { language, type } = user;
 
-    let keyboard: InlineKeyboard;
+    let keyboard: Keyboard;
     let menuText: string;
 
     switch (type) {
@@ -35,7 +35,7 @@ export class MenuHandler {
 
       default:
         menuText = this.i18nService.t("common.error", language);
-        keyboard = new InlineKeyboard();
+        keyboard = new Keyboard();
     }
 
     await ctx.reply(menuText, { reply_markup: keyboard });
@@ -44,42 +44,48 @@ export class MenuHandler {
   /**
    * Create menu for Individual/Business/Government users
    */
-  private createUserMenu(lang: "uz" | "ru"): InlineKeyboard {
+  private createUserMenu(lang: "uz" | "ru"): Keyboard {
     const sendAppealText = lang === "uz" ? "📝 Murojaat yuborish" : "📝 Отправить обращение";
     const myAppealsText = lang === "uz" ? "📋 Mening murojaatlarim" : "📋 Мои обращения";
 
-    return new InlineKeyboard()
-      .text(sendAppealText, "menu_send_appeal")
+    return new Keyboard()
+      .text(sendAppealText)
       .row()
-      .text(myAppealsText, "menu_my_appeals");
+      .text(myAppealsText)
+      .resized()
+      .persistent();
   }
 
   /**
    * Create menu for Moderators
    */
-  private createModeratorMenu(lang: "uz" | "ru"): InlineKeyboard {
+  private createModeratorMenu(lang: "uz" | "ru"): Keyboard {
     const reviewAppealsText = lang === "uz" ? "📝 Murojaatlarni ko'rib chiqish" : "📝 Рассмотреть обращения";
     const statisticsText = lang === "uz" ? "📊 Statistika" : "📊 Статистика";
 
-    return new InlineKeyboard()
-      .text(reviewAppealsText, "menu_review_appeals")
+    return new Keyboard()
+      .text(reviewAppealsText)
       .row()
-      .text(statisticsText, "menu_statistics");
+      .text(statisticsText)
+      .resized()
+      .persistent();
   }
 
   /**
    * Create menu for Admins
    */
-  private createAdminMenu(lang: "uz" | "ru"): InlineKeyboard {
+  private createAdminMenu(lang: "uz" | "ru"): Keyboard {
     const allAppealsText = lang === "uz" ? "📋 Barcha faol murojaatlar" : "📋 Все активные обращения";
     const reviewAppealText = lang === "uz" ? "📝 Murojaatni ko'rib chiqish" : "📝 Рассмотреть обращение";
     const statisticsText = lang === "uz" ? "📊 Statistika" : "📊 Статистика";
 
-    return new InlineKeyboard()
-      .text(allAppealsText, "menu_all_appeals")
+    return new Keyboard()
+      .text(allAppealsText)
       .row()
-      .text(reviewAppealText, "menu_review_appeal")
+      .text(reviewAppealText)
       .row()
-      .text(statisticsText, "menu_statistics");
+      .text(statisticsText)
+      .resized()
+      .persistent();
   }
 }

@@ -38,7 +38,11 @@ export type RegistrationStep =
   | "appeal_custom_number_input"
   | "appeal_text_input"
   | "appeal_collecting_files"
-  | "appeal_confirm";
+  | "appeal_confirm"
+  // Moderator actions
+  | "moderator_close_appeal_text"
+  | "moderator_close_appeal_files"
+  | "moderator_extend_due_date";
 
 /**
  * User types
@@ -89,6 +93,18 @@ export interface SessionData {
       file_type: "document" | "photo" | "video" | "audio" | "voice";
     }>;
     appealCustomNumber?: string;
+
+    // Moderator actions
+    moderatorAppealId?: number;
+    moderatorAnswerText?: string;
+    moderatorAnswerFiles?: Array<{
+      file_id: string;
+      file_unique_id: string;
+      file_name?: string;
+      file_size?: number;
+      mime_type?: string;
+      file_type: "document" | "photo" | "video" | "audio" | "voice";
+    }>;
   };
 }
 

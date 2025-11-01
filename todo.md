@@ -70,6 +70,7 @@
   - [x] Collect full name with validation
   - [x] Collect position with validation
   - [x] Collect phone number with validation (with contact sharing option)
+  - [x] Collect district selection (government users select their district, NOT central bank)
 - [x] Create Moderator registration conversation flow:
   - [x] Collect full name with validation
   - [x] Collect phone with validation (with contact sharing option)
@@ -96,35 +97,37 @@
 - [x] Implement /menu command to return to main menu
 
 ## 7. Appeal Creation & Submission (Telegram-based file storage)
-- [ ] Implement "Send Appeal" conversation flow for all user types
-- [ ] For government users: ask if they want to provide custom appeal number
-- [ ] Accept text message as appeal content
-- [ ] Accept document attachments (PDF, Word, DOCX, etc.) using Grammy's message.document
-- [ ] Accept image attachments using Grammy's message.photo
-- [ ] Accept audio/video files but require text format attachments also
-- [ ] Extract file metadata (file_id, file_unique_id, mime_type, size, name) using FileService
-- [ ] Store file metadata in file_jsons JSONB column (not downloading files)
-- [ ] Validate that appeal has text content OR text-format attachments
-- [ ] Display validation error if only non-text attachments provided
-- [ ] Generate unique auto-incrementing appeal number (format: YYYY-NNNNNN)
-- [ ] Calculate and set due_date using dayjs (+15 days from creation)
-- [ ] Determine target district based on user type:
-  - [ ] Individual: user's district
-  - [ ] Business: bank_account_district
-  - [ ] Government: central bank district
-- [ ] Check if user has active appeal before allowing submission
-- [ ] If user has active appeal, create approval request and notify moderator
-- [ ] Save appeal record with text and file_jsons to database
-- [ ] Send confirmation message with appeal number to user
-- [ ] Notify all moderators of target district about new appeal
+- [x] Implement "Send Appeal" conversation flow for all user types
+- [x] For government users: ask if they want to provide custom appeal number
+- [x] Accept text message as appeal content
+- [x] Accept document attachments (PDF, Word, DOCX, etc.) using Grammy's message.document
+- [x] Accept image attachments using Grammy's message.photo
+- [x] Accept audio/video files but require text format attachments also
+- [x] Extract file metadata (file_id, file_unique_id, mime_type, size, name) using FileService
+- [x] Store file metadata in file_jsons JSONB column (not downloading files)
+- [x] Validate that appeal has text content OR text-format attachments
+- [x] Display validation error if only non-text attachments provided
+- [x] Generate unique auto-incrementing appeal number (format: YYYY-NNNNNN)
+- [x] Calculate and set due_date using dayjs (+15 days from creation)
+- [x] Determine target district based on user type:
+  - [x] Individual: user's district
+  - [x] Business: bank_account_district
+  - [x] Government: user's selected district (NOT central bank)
+- [x] Check if user has active appeal before allowing submission
+- [x] If user has active appeal, create approval request and notify moderator
+- [x] Save appeal record with text and file_jsons to database
+- [x] Send confirmation message with appeal number to user
+- [ ] Notify all moderators of target district about new appeal (TODO comment exists in code)
 
 ## 8. My Appeals Feature
-- [ ] Implement "My Appeals" menu for users
-- [ ] List all active appeals with status
-- [ ] Show appeal number, submission date, status, due date
-- [ ] Implement pagination for appeal list
-- [ ] Allow users to view appeal details
+- [x] Implement "My Appeals" menu for users
+- [x] List all appeals with status (active and closed)
+- [x] Show appeal number, submission date, status
+- [ ] Show due date in list
+- [ ] Implement pagination for appeal list (not urgent - simple lists work fine)
+- [ ] Allow users to view detailed appeal information (text, files)
 - [ ] Show appeal history (forwarding, extensions, closures)
+- [ ] Add button to view appeal answers when closed
 
 ## 9. Moderator Review Appeals
 - [ ] Implement "Review Appeals" menu for moderators
@@ -259,6 +262,13 @@
 - [ ] Create user manual for moderators/admins
 - [ ] Document seed data structure
 - [ ] Add inline code comments for complex logic
+
+## 21. Testing & Development Tools
+- [x] Create migration to make user type nullable (for role switching)
+- [x] Implement /reset_account secret command for developers
+- [x] Implement resetUserRole() to preserve appeals while switching roles
+- [x] Update registration handler to detect users with type=null
+- [x] Allow testing different roles without losing created appeals
 
 ## 22. Additional Features & Polish
 - [ ] Add appeal search functionality by appeal number

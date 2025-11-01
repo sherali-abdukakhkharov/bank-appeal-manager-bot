@@ -20,16 +20,13 @@ export class AppealRepository {
         user_id: dto.user_id,
         district_id: dto.district_id,
         text: dto.text,
-        file_jsons: dto.file_jsons ? JSON.stringify(dto.file_jsons) : null,
+        file_jsons: dto.file_jsons && dto.file_jsons.length > 0 ? dto.file_jsons : null,
         status: "new",
         due_date: dueDate,
       })
       .returning("*");
 
-    if (appeal.file_jsons) {
-      appeal.file_jsons = JSON.parse(appeal.file_jsons);
-    }
-
+    // Knex automatically handles JSONB serialization, no need to parse
     return appeal;
   }
 
@@ -38,14 +35,7 @@ export class AppealRepository {
    */
   async findById(id: number): Promise<Appeal | null> {
     const appeal = await this.db("appeals").where("id", id).first();
-
-    if (!appeal) return null;
-
-    if (appeal.file_jsons) {
-      appeal.file_jsons = JSON.parse(appeal.file_jsons);
-    }
-
-    return appeal;
+    return appeal || null;
   }
 
   /**
@@ -53,30 +43,16 @@ export class AppealRepository {
    */
   async findByNumber(appealNumber: string): Promise<Appeal | null> {
     const appeal = await this.db("appeals").where("appeal_number", appealNumber).first();
-
-    if (!appeal) return null;
-
-    if (appeal.file_jsons) {
-      appeal.file_jsons = JSON.parse(appeal.file_jsons);
-    }
-
-    return appeal;
+    return appeal || null;
   }
 
   /**
    * Find all appeals by user ID
    */
   async findByUserId(userId: number): Promise<Appeal[]> {
-    const appeals = await this.db("appeals")
+    return await this.db("appeals")
       .where("user_id", userId)
       .orderBy("created_at", "desc");
-
-    return appeals.map(appeal => {
-      if (appeal.file_jsons) {
-        appeal.file_jsons = JSON.parse(appeal.file_jsons);
-      }
-      return appeal;
-    });
   }
 
   /**
@@ -88,13 +64,7 @@ export class AppealRepository {
       .whereIn("status", ["new", "in_progress", "forwarded"])
       .first();
 
-    if (!appeal) return null;
-
-    if (appeal.file_jsons) {
-      appeal.file_jsons = JSON.parse(appeal.file_jsons);
-    }
-
-    return appeal;
+    return appeal || null;
   }
 
   /**
@@ -152,13 +122,119 @@ export class AppealRepository {
       query.where("status", status);
     }
 
-    const appeals = await query.orderBy("due_date", "asc");
+    return await query.orderBy("due_date", "asc");
+  }
 
-    return appeals.map(appeal => {
-      if (appeal.file_jsons) {
-        appeal.file_jsons = JSON.parse(appeal.file_jsons);
-      }
-      return appeal;
+  /**
+   * Find appeals by district and status, sorted by due date
+   */
+  async findByDistrictAndStatus(
+    districtId: number,
+    status: string,
+  ): Promise<Appeal[]> {
+    return await this.db("appeals")
+      .where("district_id", districtId)
+      .where("status", status)
+      .orderBy("due_date", "asc");
+  }
+
+  /**
+   * Close appeal with moderator answer
+   */
+  async closeAppeal(
+    appealId: number,
+    moderatorId: number,
+    answerText: string,
+    answerFiles: any[],
+  ): Promise<void> {
+    await this.db.transaction(async (trx) => {
+      // Update appeal status
+      await trx("appeals")
+        .where("id", appealId)
+        .update({
+          status: "closed",
+          closed_by_moderator_id: moderatorId,
+          closed_at: new Date(),
+          updated_at: new Date(),
+        });
+
+      // Create appeal answer
+      await trx("appeal_answers").insert({
+        appeal_id: appealId,
+        moderator_id: moderatorId,
+        text: answerText,
+        file_jsons: answerFiles.length > 0 ? answerFiles : null,
+      });
+
+      // Create log entry
+      await trx("appeal_logs").insert({
+        appeal_id: appealId,
+        action_type: "closed",
+        moderator_id: moderatorId,
+      });
+    });
+  }
+
+  /**
+   * Forward appeal to another district
+   */
+  async forwardAppeal(
+    appealId: number,
+    targetDistrictId: number,
+    moderatorId: number,
+  ): Promise<void> {
+    await this.db.transaction(async (trx) => {
+      // Get current district
+      const appeal = await trx("appeals").where("id", appealId).first();
+
+      // Update appeal district
+      await trx("appeals")
+        .where("id", appealId)
+        .update({
+          district_id: targetDistrictId,
+          status: "forwarded",
+          updated_at: new Date(),
+        });
+
+      // Create log entry
+      await trx("appeal_logs").insert({
+        appeal_id: appealId,
+        action_type: "forwarded",
+        from_district_id: appeal.district_id,
+        to_district_id: targetDistrictId,
+        moderator_id: moderatorId,
+      });
+    });
+  }
+
+  /**
+   * Extend appeal due date
+   */
+  async extendDueDate(
+    appealId: number,
+    newDueDate: Date,
+    moderatorId: number,
+  ): Promise<void> {
+    await this.db.transaction(async (trx) => {
+      // Get current due date
+      const appeal = await trx("appeals").where("id", appealId).first();
+
+      // Update due date
+      await trx("appeals")
+        .where("id", appealId)
+        .update({
+          due_date: newDueDate,
+          updated_at: new Date(),
+        });
+
+      // Create log entry
+      await trx("appeal_logs").insert({
+        appeal_id: appealId,
+        action_type: "extended",
+        old_due_date: appeal.due_date,
+        new_due_date: newDueDate,
+        moderator_id: moderatorId,
+      });
     });
   }
 }

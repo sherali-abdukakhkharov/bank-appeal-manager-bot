@@ -11,6 +11,7 @@ import { FileService } from "../../file/services/file.service";
 import { RegistrationHandler } from "../handlers/registration.handler";
 import { MenuHandler } from "../handlers/menu.handler";
 import { AppealHandler } from "../handlers/appeal.handler";
+import { ModeratorHandler } from "../handlers/moderator.handler";
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -18,6 +19,7 @@ export class BotService implements OnModuleInit {
   private registrationHandler: RegistrationHandler;
   private menuHandler: MenuHandler;
   private appealHandler: AppealHandler;
+  private moderatorHandler: ModeratorHandler;
 
   constructor(
     private configService: ConfigService,
@@ -65,6 +67,13 @@ export class BotService implements OnModuleInit {
       this.appealService,
       this.fileService,
       this.userService,
+    );
+    this.moderatorHandler = new ModeratorHandler(
+      this.i18nService,
+      this.appealService,
+      this.userService,
+      this.districtService,
+      this.fileService,
     );
 
     // Register handlers
@@ -258,6 +267,59 @@ export class BotService implements OnModuleInit {
       );
     });
 
+    // Moderator - Review Appeals
+    this.bot.callbackQuery("menu_review_appeals", async (ctx) => {
+      await this.moderatorHandler.showReviewAppeals(ctx);
+    });
+
+    // Moderator - View Appeal Detail
+    this.bot.callbackQuery(/^view_appeal_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.showAppealDetail(ctx, appealId);
+    });
+
+    // Moderator - Close Appeal
+    this.bot.callbackQuery(/^close_appeal_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.startCloseAppeal(ctx, appealId);
+    });
+
+    // Moderator - Submit Close Appeal
+    this.bot.callbackQuery("submit_close_appeal", async (ctx) => {
+      await this.moderatorHandler.submitCloseAppeal(ctx);
+    });
+
+    // Moderator - Cancel Close Appeal
+    this.bot.callbackQuery("cancel_close_appeal", async (ctx) => {
+      await ctx.answerCallbackQuery();
+      ctx.session.step = "main_menu";
+      ctx.session.data.moderatorAppealId = undefined;
+      ctx.session.data.moderatorAnswerText = undefined;
+      ctx.session.data.moderatorAnswerFiles = [];
+      await ctx.editMessageText(
+        this.i18nService.t("common.cancel", ctx.session.language),
+      );
+    });
+
+    // Moderator - Forward Appeal
+    this.bot.callbackQuery(/^forward_appeal_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.startForwardAppeal(ctx, appealId);
+    });
+
+    // Moderator - Submit Forward Appeal
+    this.bot.callbackQuery(/^forward_to_(\d+)_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      const districtId = parseInt(ctx.match[2]);
+      await this.moderatorHandler.submitForwardAppeal(ctx, appealId, districtId);
+    });
+
+    // Moderator - Extend Due Date
+    this.bot.callbackQuery(/^extend_appeal_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.startExtendDueDate(ctx, appealId);
+    });
+
     // ==================== CONTACT MESSAGE HANDLERS ====================
 
     this.bot.on("message:contact", async (ctx) => {
@@ -305,6 +367,42 @@ export class BotService implements OnModuleInit {
     this.bot.on("message:text", async (ctx) => {
       const { step } = ctx.session;
       const text = ctx.message.text;
+
+      // Handle menu button clicks (when in main_menu step)
+      if (step === "main_menu") {
+        // User menu buttons
+        if (text === "📝 Murojaat yuborish" || text === "📝 Отправить обращение") {
+          await this.appealHandler.startAppealCreation(ctx);
+          return;
+        }
+        if (text === "📋 Mening murojaatlarim" || text === "📋 Мои обращения") {
+          await this.appealHandler.showMyAppeals(ctx);
+          return;
+        }
+
+        // Moderator menu buttons
+        if (text === "📝 Murojaatlarni ko'rib chiqish" || text === "📝 Рассмотреть обращения") {
+          await this.moderatorHandler.showReviewAppeals(ctx);
+          return;
+        }
+        if (text === "📊 Statistika" || text === "📊 Статистика") {
+          // TODO: Implement statistics
+          await ctx.reply("📊 Statistika tez orada ishga tushadi / Статистика скоро будет доступна");
+          return;
+        }
+
+        // Admin menu buttons
+        if (text === "📋 Barcha faol murojaatlar" || text === "📋 Все активные обращения") {
+          // TODO: Implement admin view all appeals
+          await ctx.reply("📋 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+          return;
+        }
+        if (text === "📝 Murojaatni ko'rib chiqish" || text === "📝 Рассмотреть обращение") {
+          // TODO: Implement admin review appeal
+          await ctx.reply("📝 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+          return;
+        }
+      }
 
       // Route based on current step
       switch (step) {
@@ -369,7 +467,20 @@ export class BotService implements OnModuleInit {
           await this.appealHandler.handleCustomNumberInput(ctx, text);
           break;
         case "appeal_text_input":
-          await this.appealHandler.handleAppealContent(ctx);
+          // Check if user clicked submit button
+          if (text === "✅ Yuborish" || text === "✅ Отправить") {
+            await this.appealHandler.submitAppeal(ctx);
+          } else {
+            await this.appealHandler.handleAppealContent(ctx);
+          }
+          break;
+
+        // Moderator actions
+        case "moderator_close_appeal_text":
+          await this.moderatorHandler.handleCloseAppealText(ctx, text);
+          break;
+        case "moderator_extend_due_date":
+          await this.moderatorHandler.handleExtendDueDate(ctx, text);
           break;
 
         default:
@@ -382,43 +493,53 @@ export class BotService implements OnModuleInit {
 
     // ==================== FILE MESSAGE HANDLERS ====================
 
-    // Handle document uploads during appeal creation
+    // Handle document uploads during appeal creation and moderator answers
     this.bot.on("message:document", async (ctx) => {
       const { step } = ctx.session;
       if (step === "appeal_text_input") {
         await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
       }
     });
 
-    // Handle photo uploads during appeal creation
+    // Handle photo uploads during appeal creation and moderator answers
     this.bot.on("message:photo", async (ctx) => {
       const { step } = ctx.session;
       if (step === "appeal_text_input") {
         await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
       }
     });
 
-    // Handle video uploads during appeal creation
+    // Handle video uploads during appeal creation and moderator answers
     this.bot.on("message:video", async (ctx) => {
       const { step } = ctx.session;
       if (step === "appeal_text_input") {
         await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
       }
     });
 
-    // Handle audio uploads during appeal creation
+    // Handle audio uploads during appeal creation and moderator answers
     this.bot.on("message:audio", async (ctx) => {
       const { step } = ctx.session;
       if (step === "appeal_text_input") {
         await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
       }
     });
 
-    // Handle voice uploads during appeal creation
+    // Handle voice uploads during appeal creation and moderator answers
     this.bot.on("message:voice", async (ctx) => {
       const { step } = ctx.session;
       if (step === "appeal_text_input") {
         await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
       }
     });
 
