@@ -54,4 +54,34 @@ export class UserRepository {
       .whereIn("type", ["moderator", "admin"])
       .where("district_id", districtId);
   }
+
+  async getBusinessInfo(userId: number): Promise<UserBusinessInfo | null> {
+    const info = await this.db("user_business_info")
+      .where("user_id", userId)
+      .first();
+    return info || null;
+  }
+
+  async resetUserRole(userId: number): Promise<void> {
+    // Use transaction to ensure all updates succeed or rollback
+    await this.db.transaction(async (trx) => {
+      // Clear type-specific fields in users table
+      await trx("users")
+        .where("id", userId)
+        .update({
+          type: null,
+          birth_date: null, // Individual-specific field
+          additional_phone: null, // Reset optional field
+        });
+
+      // Delete business info if exists (CASCADE will handle this automatically)
+      await trx("user_business_info").where("user_id", userId).delete();
+
+      // Delete government info if exists (CASCADE will handle this automatically)
+      await trx("user_government_info").where("user_id", userId).delete();
+
+      // Note: We keep the user record, appeals, and core fields like:
+      // - telegram_id, full_name, phone, district_id, language
+    });
+  }
 }

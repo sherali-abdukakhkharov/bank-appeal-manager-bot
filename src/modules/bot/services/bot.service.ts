@@ -6,20 +6,26 @@ import { BotContext } from "../../../common/types/bot.types";
 import { I18nService } from "../../i18n/services/i18n.service";
 import { UserService } from "../../user/services/user.service";
 import { DistrictService } from "../../district/services/district.service";
+import { AppealService } from "../../appeal/services/appeal.service";
+import { FileService } from "../../file/services/file.service";
 import { RegistrationHandler } from "../handlers/registration.handler";
 import { MenuHandler } from "../handlers/menu.handler";
+import { AppealHandler } from "../handlers/appeal.handler";
 
 @Injectable()
 export class BotService implements OnModuleInit {
   private bot: Bot<BotContext>;
   private registrationHandler: RegistrationHandler;
   private menuHandler: MenuHandler;
+  private appealHandler: AppealHandler;
 
   constructor(
     private configService: ConfigService,
     private i18nService: I18nService,
     private userService: UserService,
     private districtService: DistrictService,
+    private appealService: AppealService,
+    private fileService: FileService,
   ) {}
 
   async onModuleInit() {
@@ -53,6 +59,12 @@ export class BotService implements OnModuleInit {
       this.userService,
       this.districtService,
       this.menuHandler,
+    );
+    this.appealHandler = new AppealHandler(
+      this.i18nService,
+      this.appealService,
+      this.fileService,
+      this.userService,
     );
 
     // Register handlers
@@ -99,6 +111,45 @@ export class BotService implements OnModuleInit {
       }
     });
 
+    // Secret development command to switch roles (keeps appeals and core data)
+    this.bot.command("reset_account", async (ctx) => {
+      const telegramId = ctx.from!.id;
+
+      try {
+        const user = await this.userService.findByTelegramId(telegramId);
+
+        if (user) {
+          // Reset role but keep user data and appeals
+          await this.userService.resetUserRole(user.id);
+
+          // Clear session
+          ctx.session.step = null;
+          ctx.session.data = {};
+          ctx.session.language = user.language || "uz";
+
+          await ctx.reply(
+            "✅ Role reset successful!\n\n" +
+            "Your appeals and core data are preserved.\n" +
+            "Use /start to select a new role.\n\n" +
+            "✅ Роль успешно сброшена!\n\n" +
+            "Ваши обращения и основные данные сохранены.\n" +
+            "Используйте /start для выбора новой роли."
+          );
+        } else {
+          await ctx.reply(
+            "No account found. Use /start to register.\n\n" +
+            "Аккаунт не найден. Используйте /start для регистрации."
+          );
+        }
+      } catch (error) {
+        console.error("Error resetting role:", error);
+        await ctx.reply(
+          "❌ Error resetting role. Please try again.\n\n" +
+          "❌ Ошибка при сбросе роли. Попробуйте снова."
+        );
+      }
+    });
+
     // ==================== CALLBACK QUERY HANDLERS ====================
 
     // Language selection
@@ -133,6 +184,11 @@ export class BotService implements OnModuleInit {
           ctx,
           districtId,
         );
+      } else if (step === "government_district") {
+        await this.registrationHandler.handleGovernmentDistrictSelection(
+          ctx,
+          districtId,
+        );
       } else if (step === "moderator_district") {
         await this.registrationHandler.handleModeratorDistrictSelection(
           ctx,
@@ -162,6 +218,44 @@ export class BotService implements OnModuleInit {
           "skip",
         );
       }
+    });
+
+    // Menu - Send Appeal
+    this.bot.callbackQuery("menu_send_appeal", async (ctx) => {
+      await this.appealHandler.startAppealCreation(ctx);
+    });
+
+    // Menu - My Appeals
+    this.bot.callbackQuery("menu_my_appeals", async (ctx) => {
+      await this.appealHandler.showMyAppeals(ctx);
+    });
+
+    // Appeal - Custom number choice
+    this.bot.callbackQuery(/^custom_number_(yes|no)$/, async (ctx) => {
+      const response = ctx.match[1] as "yes" | "no";
+      await this.appealHandler.handleCustomNumberPrompt(ctx, response);
+    });
+
+    // Appeal - Submit
+    this.bot.callbackQuery("submit_appeal", async (ctx) => {
+      await this.appealHandler.submitAppeal(ctx);
+    });
+
+    // Appeal - Request approval
+    this.bot.callbackQuery("request_approval", async (ctx) => {
+      await this.appealHandler.requestApproval(ctx);
+    });
+
+    // Appeal - Cancel
+    this.bot.callbackQuery("cancel", async (ctx) => {
+      await ctx.answerCallbackQuery();
+      ctx.session.step = "main_menu";
+      ctx.session.data.appealText = undefined;
+      ctx.session.data.appealFiles = [];
+      ctx.session.data.appealCustomNumber = undefined;
+      await ctx.editMessageText(
+        this.i18nService.t("common.cancel", ctx.session.language),
+      );
     });
 
     // ==================== CONTACT MESSAGE HANDLERS ====================
@@ -270,11 +364,61 @@ export class BotService implements OnModuleInit {
           await this.registrationHandler.handleModeratorMFO(ctx, text);
           break;
 
+        // Appeal creation
+        case "appeal_custom_number_input":
+          await this.appealHandler.handleCustomNumberInput(ctx, text);
+          break;
+        case "appeal_text_input":
+          await this.appealHandler.handleAppealContent(ctx);
+          break;
+
         default:
           // No active registration step
           await ctx.reply(
             this.i18nService.t("common.error", ctx.session.language),
           );
+      }
+    });
+
+    // ==================== FILE MESSAGE HANDLERS ====================
+
+    // Handle document uploads during appeal creation
+    this.bot.on("message:document", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
+      }
+    });
+
+    // Handle photo uploads during appeal creation
+    this.bot.on("message:photo", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
+      }
+    });
+
+    // Handle video uploads during appeal creation
+    this.bot.on("message:video", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
+      }
+    });
+
+    // Handle audio uploads during appeal creation
+    this.bot.on("message:audio", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
+      }
+    });
+
+    // Handle voice uploads during appeal creation
+    this.bot.on("message:voice", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
       }
     });
 

@@ -24,6 +24,7 @@ export type RegistrationStep =
   | "government_full_name"
   | "government_position"
   | "government_phone"
+  | "government_district"
   // Moderator/Admin
   | "moderator_full_name"
   | "moderator_phone"
@@ -31,7 +32,13 @@ export type RegistrationStep =
   | "moderator_mfo"
   // Post-registration
   | "registration_complete"
-  | "main_menu";
+  | "main_menu"
+  // Appeal creation
+  | "appeal_custom_number_prompt"
+  | "appeal_custom_number_input"
+  | "appeal_text_input"
+  | "appeal_collecting_files"
+  | "appeal_confirm";
 
 /**
  * User types
@@ -70,6 +77,18 @@ export interface SessionData {
 
     // Moderator/Admin specific
     mfoCode?: string;
+
+    // Appeal creation
+    appealText?: string;
+    appealFiles?: Array<{
+      file_id: string;
+      file_unique_id: string;
+      file_name?: string;
+      file_size?: number;
+      mime_type?: string;
+      file_type: "document" | "photo" | "video" | "audio" | "voice";
+    }>;
+    appealCustomNumber?: string;
   };
 }
 

@@ -40,11 +40,26 @@ export class RegistrationHandler {
     // Check if user is already registered
     const existingUser = await this.userService.findByTelegramId(telegramId);
 
-    if (existingUser) {
-      // User already registered - set language and return menu flag
+    if (existingUser && existingUser.type) {
+      // User already registered with a role - set language and return menu flag
       ctx.session.language = existingUser.language;
       ctx.session.step = "main_menu";
       return { registered: true, user: existingUser };
+    }
+
+    if (existingUser && !existingUser.type) {
+      // User exists but role was reset - start from user type selection
+      ctx.session.language = existingUser.language;
+      ctx.session.step = "user_type_selection";
+
+      const keyboard = createUserTypeKeyboard(existingUser.language);
+
+      await ctx.reply(
+        this.i18nService.t("registration.select_user_type", existingUser.language),
+        { reply_markup: keyboard },
+      );
+
+      return { registered: false };
     }
 
     // New user - start registration with language selection
@@ -54,7 +69,7 @@ export class RegistrationHandler {
     const keyboard = createLanguageKeyboard();
 
     await ctx.reply(
-      "Xush kelibsiz! / Добро пожаловать!\n\n" +
+      "Xush kelibsiz! / Добro пожаловать!\n\n" +
         "Iltimos, tilni tanlang / Пожалуйста, выберите язык:",
       { reply_markup: keyboard },
     );
@@ -448,13 +463,35 @@ export class RegistrationHandler {
     }
 
     ctx.session.data.phone = phone;
+    ctx.session.step = "government_district";
+
+    // Show district selection
+    const districts = await this.districtService.getAllDistricts();
+    const keyboard = createDistrictKeyboard(districts, language);
+
+    await ctx.reply(
+      this.i18nService.t("registration.select_district", language),
+      {
+        reply_markup: {
+          ...removeKeyboard(),
+          inline_keyboard: keyboard.inline_keyboard,
+        },
+      },
+    );
+  }
+
+  async handleGovernmentDistrictSelection(ctx: BotContext, districtId: number) {
+    const { language } = ctx.session;
+    ctx.session.data.districtId = districtId;
+
+    await ctx.answerCallbackQuery();
 
     // Save government user to database
     const user = await this.saveUser(ctx);
 
-    await ctx.reply(this.i18nService.t("registration.completed", language), {
-      reply_markup: removeKeyboard(),
-    });
+    await ctx.editMessageText(
+      this.i18nService.t("registration.completed", language),
+    );
 
     // Show main menu
     if (user) {

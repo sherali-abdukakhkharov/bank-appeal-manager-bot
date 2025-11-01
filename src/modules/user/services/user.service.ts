@@ -50,4 +50,16 @@ export class UserService {
   async findModeratorsByDistrict(districtId: number): Promise<User[]> {
     return await this.userRepository.findModeratorsByDistrict(districtId);
   }
+
+  async findById(id: number): Promise<User | null> {
+    return await this.userRepository.findById(id);
+  }
+
+  async getBusinessInfo(userId: number): Promise<UserBusinessInfo | null> {
+    return await this.userRepository.getBusinessInfo(userId);
+  }
+
+  async resetUserRole(userId: number): Promise<void> {
+    return await this.userRepository.resetUserRole(userId);
+  }
 }

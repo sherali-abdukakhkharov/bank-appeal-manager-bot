@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   telegram_id: number;
-  type: "individual" | "business" | "government" | "moderator" | "admin";
+  type: "individual" | "business" | "government" | "moderator" | "admin" | null;
   full_name: string;
   phone: string;
   additional_phone?: string;
