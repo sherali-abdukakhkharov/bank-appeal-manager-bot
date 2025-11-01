@@ -8,59 +8,23 @@ export async function seed(knex: Knex): Promise<void> {
   await knex("government_organizations").insert([
     {
       id: 1,
-      name_uz: "O'zbekiston Respublikasi Prezidenti Administratsiyasi",
-      name_ru: "Администрация Президента Республики Узбекистан",
+      name_uz: "Prokuratura",
+      name_ru: "Прокуратура",
     },
     {
       id: 2,
-      name_uz: "O'zbekiston Respublikasi Vazirlar Mahkamasi",
-      name_ru: "Кабинет Министров Республики Узбекистан",
+      name_uz: "MIB",
+      name_ru: "БПИ",
     },
-    { id: 3, name_uz: "Moliya vazirligi", name_ru: "Министерство финансов" },
+    {
+      id: 3,
+      name_uz: "Sud",
+      name_ru: "Суд",
+    },
     {
       id: 4,
-      name_uz: "Iqtisodiyot va moliya vazirligi",
-      name_ru: "Министерство экономики и финансов",
-    },
-    {
-      id: 5,
-      name_uz: "Ichki ishlar vazirligi",
-      name_ru: "Министерство внутренних дел",
-    },
-    { id: 6, name_uz: "Soliq qo'mitasi", name_ru: "Налоговый комитет" },
-    { id: 7, name_uz: "Bojxona qo'mitasi", name_ru: "Таможенный комитет" },
-    {
-      id: 8,
-      name_uz: "Davlat xavfsizlik xizmati",
-      name_ru: "Служба государственной безопасности",
-    },
-    { id: 9, name_uz: "Bosh prokuratura", name_ru: "Генеральная прокуратура" },
-    { id: 10, name_uz: "Adliya vazirligi", name_ru: "Министерство юстиции" },
-    {
-      id: 11,
-      name_uz: "Markaziy saylov komissiyasi",
-      name_ru: "Центральная избирательная комиссия",
-    },
-    {
-      id: 12,
-      name_uz: "Davlat statistika qo'mitasi",
-      name_ru: "Государственный комитет по статистике",
-    },
-    {
-      id: 13,
-      name_uz: "Davlat aktivlarini boshqarish agentligi",
-      name_ru: "Агентство по управлению государственными активами",
-    },
-    {
-      id: 14,
-      name_uz:
-        "Raqobatni rivojlantirish va iste'molchilar huquqlarini himoya qilish qo'mitasi",
-      name_ru: "Комитет по развитию конкуренции и защите прав потребителей",
-    },
-    {
-      id: 15,
-      name_uz: "Boshqa davlat tashkiloti",
-      name_ru: "Другая государственная организация",
+      name_uz: "Soliq",
+      name_ru: "Налоговая",
     },
   ]);
 
