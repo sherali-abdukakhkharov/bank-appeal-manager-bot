@@ -8,6 +8,7 @@ import { UserService } from "../../user/services/user.service";
 import { DistrictService } from "../../district/services/district.service";
 import { AppealService } from "../../appeal/services/appeal.service";
 import { FileService } from "../../file/services/file.service";
+import { NotificationService } from "../../notification/services/notification.service";
 import { RegistrationHandler } from "../handlers/registration.handler";
 import { MenuHandler } from "../handlers/menu.handler";
 import { AppealHandler } from "../handlers/appeal.handler";
@@ -29,6 +30,7 @@ export class BotService implements OnModuleInit {
     private districtService: DistrictService,
     private appealService: AppealService,
     private fileService: FileService,
+    private notificationService: NotificationService,
   ) { }
 
   async onModuleInit() {
@@ -40,6 +42,9 @@ export class BotService implements OnModuleInit {
     }
 
     this.bot = new Bot<BotContext>(token);
+
+    // Set bot instance in notification service
+    this.notificationService.setBotInstance(this.bot);
 
     // Setup hydration plugin
     this.bot.use(hydrate());
@@ -69,6 +74,8 @@ export class BotService implements OnModuleInit {
       this.fileService,
       this.userService,
       this.menuHandler,
+      this.notificationService,
+      this.districtService,
     );
     this.moderatorHandler = new ModeratorHandler(
       this.i18nService,
@@ -76,6 +83,7 @@ export class BotService implements OnModuleInit {
       this.userService,
       this.districtService,
       this.fileService,
+      this.notificationService,
     );
 
     // Register handlers
@@ -269,6 +277,17 @@ export class BotService implements OnModuleInit {
       );
     });
 
+    // User Appeal - View My Appeal Detail
+    this.bot.callbackQuery(/^my_appeal_(\d+)$/, async (ctx) => {
+      const appealId = parseInt(ctx.match[1]);
+      await this.appealHandler.showAppealDetails(ctx, appealId);
+    });
+
+    // User Appeal - Back to My Appeals
+    this.bot.callbackQuery("back_to_my_appeals", async (ctx) => {
+      await this.appealHandler.handleBackToMyAppeals(ctx);
+    });
+
     // Moderator - Review Appeals
     this.bot.callbackQuery("menu_review_appeals", async (ctx) => {
       await this.moderatorHandler.showReviewAppeals(ctx);
@@ -320,6 +339,34 @@ export class BotService implements OnModuleInit {
     this.bot.callbackQuery(/^extend_appeal_(\d+)$/, async (ctx) => {
       const appealId = parseInt(ctx.match[1]);
       await this.moderatorHandler.startExtendDueDate(ctx, appealId);
+    });
+
+    // Admin - Filter All Districts
+    this.bot.callbackQuery("admin_filter_all", async (ctx) => {
+      await this.moderatorHandler.showAppealsByDistrictFilter(ctx, null);
+    });
+
+    // Admin - Filter by District
+    this.bot.callbackQuery(/^admin_filter_(\d+)$/, async (ctx) => {
+      const districtId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.showAppealsByDistrictFilter(ctx, districtId);
+    });
+
+    // Admin - Change Filter (go back to district selection)
+    this.bot.callbackQuery("admin_change_filter", async (ctx) => {
+      await ctx.answerCallbackQuery();
+      await this.moderatorHandler.showAllActiveAppeals(ctx);
+    });
+
+    // Export Excel - All districts (admin)
+    this.bot.callbackQuery("export_excel_all", async (ctx) => {
+      await this.moderatorHandler.exportToExcel(ctx);
+    });
+
+    // Export Excel - Specific district
+    this.bot.callbackQuery(/^export_excel_(\d+)$/, async (ctx) => {
+      const districtId = parseInt(ctx.match[1]);
+      await this.moderatorHandler.exportToExcel(ctx, districtId);
     });
 
     // ==================== CONTACT MESSAGE HANDLERS ====================
@@ -392,16 +439,14 @@ export class BotService implements OnModuleInit {
       }
       if (text === "📊 Statistika" || text === "📊 Статистика") {
         ctx.session.step = "main_menu";
-        // TODO: Implement statistics
-        await ctx.reply("📊 Statistika tez orada ishga tushadi / Статистика скоро будет доступна");
+        await this.moderatorHandler.showStatistics(ctx);
         return;
       }
 
       // Admin menu buttons
       if (text === "📋 Barcha faol murojaatlar" || text === "📋 Все активные обращения") {
         ctx.session.step = "main_menu";
-        // TODO: Implement admin view all appeals
-        await ctx.reply("📋 Admin funksiyasi tez orada / Функция администратора скоро будет доступна");
+        await this.moderatorHandler.showAllActiveAppeals(ctx);
         return;
       }
       if (text === "📝 Murojaatni ko'rib chiqish" || text === "📝 Рассмотреть обращение") {

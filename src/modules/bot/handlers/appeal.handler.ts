@@ -3,9 +3,11 @@ import { I18nService } from "../../i18n/services/i18n.service";
 import { AppealService } from "../../appeal/services/appeal.service";
 import { FileService } from "../../file/services/file.service";
 import { UserService } from "../../user/services/user.service";
+import { NotificationService } from "../../notification/services/notification.service";
+import { DistrictService } from "../../district/services/district.service";
 import { FileMetadata } from "../../../common/types/file.types";
 import { InlineKeyboard, Keyboard } from "grammy";
-import { formatDate } from "../../../common/utils/date.util";
+import { formatDate, formatDateTime } from "../../../common/utils/date.util";
 import { MenuHandler } from "./menu.handler";
 import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 
@@ -16,6 +18,8 @@ export class AppealHandler {
     private fileService: FileService,
     private userService: UserService,
     private menuHandler: MenuHandler,
+    private notificationService: NotificationService,
+    private districtService: DistrictService,
   ) { }
 
   /**
@@ -226,7 +230,11 @@ export class AppealHandler {
       // Show main menu
       await this.menuHandler.showMainMenu(ctx, user);
 
-      // TODO: Notify moderators of the target district
+      // Notify moderators of the target district
+      await this.notificationService.notifyModeratorsAboutNewAppeal(
+        appeal,
+        user,
+      );
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
@@ -256,7 +264,11 @@ export class AppealHandler {
         this.i18nService.t("appeal.send.request_sent", language),
       );
 
-      // TODO: Notify moderators about approval request
+      // Notify moderators about approval request
+      await this.notificationService.notifyModeratorsAboutApprovalRequest(
+        user,
+        user.district_id!,
+      );
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(
@@ -287,16 +299,220 @@ export class AppealHandler {
       return;
     }
 
-    // Format appeals list
-    let message = language === "uz" ? "📋 Mening murojaatlarim:\n\n" : "📋 Мои обращения:\n\n";
+    // Create inline keyboard with appeal buttons
+    const keyboard = new InlineKeyboard();
 
     for (const appeal of appeals) {
+      const statusEmoji = this.getStatusEmoji(appeal.status);
       const statusText = this.i18nService.t(`appeal.list.status_${appeal.status}`, language);
-      message += `🔹 ${appeal.appeal_number}\n`;
-      message += `   ${language === "uz" ? "Holat" : "Статус"}: ${statusText}\n`;
-      message += `   ${language === "uz" ? "Sana" : "Дата"}: ${formatDate(appeal.created_at)}\n\n`;
+      const buttonText = `${statusEmoji} ${appeal.appeal_number} - ${statusText}`;
+
+      keyboard.text(buttonText, `my_appeal_${appeal.id}`).row();
     }
 
-    await ctx.reply(message);
+    const message = language === "uz"
+      ? "📋 *Mening murojaatlarim*\n\nBatafsil ko'rish uchun murojaatni tanlang:"
+      : "📋 *Мои обращения*\n\nВыберите обращение для просмотра деталей:";
+
+    await ctx.reply(message, {
+      reply_markup: keyboard,
+      parse_mode: "Markdown"
+    });
+  }
+
+  /**
+   * Show detailed view of an appeal with history
+   */
+  async showAppealDetails(ctx: BotContext, appealId: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user) {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      const details = await this.appealService.getAppealDetails(appealId);
+
+      if (!details || details.appeal.user_id !== user.id) {
+        await ctx.reply(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      const { appeal, answer, logs } = details;
+
+      // Build message
+      const statusText = this.i18nService.t(`appeal.list.status_${appeal.status}`, language);
+      const statusEmoji = this.getStatusEmoji(appeal.status);
+
+      let message = language === "uz"
+        ? `📋 *Murojaat tafsilotlari*\n\n`
+        : `📋 *Детали обращения*\n\n`;
+
+      message += `📝 ${language === "uz" ? "Raqam" : "Номер"}: ${appeal.appeal_number}\n`;
+      message += `${statusEmoji} ${language === "uz" ? "Holat" : "Статус"}: ${statusText}\n`;
+      message += `📅 ${language === "uz" ? "Yaratilgan" : "Создано"}: ${formatDateTime(appeal.created_at)}\n`;
+      message += `⏰ ${language === "uz" ? "Muddat" : "Срок"}: ${formatDate(appeal.due_date)}\n\n`;
+
+      if (appeal.text) {
+        message += `💬 ${language === "uz" ? "Matn" : "Текст"}:\n${appeal.text}\n\n`;
+      }
+
+      // Show history if exists
+      if (logs && logs.length > 0) {
+        message += language === "uz" ? `📜 *Tarix*:\n\n` : `📜 *История*:\n\n`;
+
+        for (const log of logs) {
+          const logMessage = await this.formatLogEntry(log, language);
+          message += `${logMessage}\n`;
+        }
+        message += `\n`;
+      }
+
+      // Show answer if closed
+      if (answer) {
+        message += language === "uz"
+          ? `✅ *Javob*:\n${answer.text || ""}\n`
+          : `✅ *Ответ*:\n${answer.text || ""}\n`;
+      }
+
+      // Send message
+      await ctx.editMessageText(message, { parse_mode: "Markdown" });
+
+      // Send appeal files if any
+      if (appeal.file_jsons && appeal.file_jsons.length > 0) {
+        for (const file of appeal.file_jsons) {
+          await this.sendFileToUser(ctx, file);
+        }
+      }
+
+      // Send answer files if any
+      if (answer?.file_jsons && answer.file_jsons.length > 0) {
+        const answerFilesHeader = language === "uz"
+          ? "📎 Javob fayllari:"
+          : "📎 Файлы ответа:";
+        await ctx.reply(answerFilesHeader);
+
+        for (const file of answer.file_jsons) {
+          await this.sendFileToUser(ctx, file);
+        }
+      }
+
+      // Show back button
+      const keyboard = new InlineKeyboard()
+        .text(language === "uz" ? "⬅️ Orqaga" : "⬅️ Назад", "back_to_my_appeals");
+
+      await ctx.reply(
+        language === "uz" ? "Nima qilmoqchisiz?" : "Что вы хотите сделать?",
+        { reply_markup: keyboard }
+      );
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Handle back to my appeals button
+   */
+  async handleBackToMyAppeals(ctx: BotContext) {
+    await ctx.answerCallbackQuery();
+    await this.showMyAppeals(ctx);
+  }
+
+  /**
+   * Get status emoji
+   */
+  private getStatusEmoji(status: string): string {
+    switch (status) {
+      case "new":
+        return "🆕";
+      case "in_progress":
+        return "⏳";
+      case "closed":
+        return "✅";
+      case "forwarded":
+        return "🔄";
+      case "overdue":
+        return "🔴";
+      default:
+        return "📋";
+    }
+  }
+
+  /**
+   * Format log entry for display
+   */
+  private async formatLogEntry(log: any, language: string): Promise<string> {
+    const timestamp = formatDateTime(log.created_at);
+
+    switch (log.action_type) {
+      case "created":
+        return language === "uz"
+          ? `🆕 ${timestamp} - Murojaat yaratildi`
+          : `🆕 ${timestamp} - Обращение создано`;
+
+      case "forwarded": {
+        const fromDistrict = await this.districtService.findDistrictById(log.from_district_id);
+        const toDistrict = await this.districtService.findDistrictById(log.to_district_id);
+        const fromName = language === "uz" ? fromDistrict?.name_uz : fromDistrict?.name_ru;
+        const toName = language === "uz" ? toDistrict?.name_uz : toDistrict?.name_ru;
+
+        return language === "uz"
+          ? `🔄 ${timestamp} - ${fromName} dan ${toName} ga yo'naltirildi`
+          : `🔄 ${timestamp} - Перенаправлено из ${fromName} в ${toName}`;
+      }
+
+      case "extended": {
+        const oldDate = formatDate(log.old_due_date);
+        const newDate = formatDate(log.new_due_date);
+
+        return language === "uz"
+          ? `📅 ${timestamp} - Muddat uzaytirildi: ${oldDate} → ${newDate}`
+          : `📅 ${timestamp} - Срок продлен: ${oldDate} → ${newDate}`;
+      }
+
+      case "closed":
+        return language === "uz"
+          ? `✅ ${timestamp} - Murojaat yopildi`
+          : `✅ ${timestamp} - Обращение закрыто`;
+
+      default:
+        return `${timestamp} - ${log.action_type}`;
+    }
+  }
+
+  /**
+   * Send file to user based on file type
+   */
+  private async sendFileToUser(ctx: BotContext, file: FileMetadata) {
+    try {
+      const caption = file.file_name || undefined;
+
+      switch (file.file_type) {
+        case "photo":
+          await ctx.replyWithPhoto(file.file_id, { caption });
+          break;
+        case "video":
+          await ctx.replyWithVideo(file.file_id, { caption });
+          break;
+        case "audio":
+          await ctx.replyWithAudio(file.file_id, { caption });
+          break;
+        case "voice":
+          await ctx.replyWithVoice(file.file_id, { caption });
+          break;
+        case "document":
+        default:
+          await ctx.replyWithDocument(file.file_id, { caption });
+          break;
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+    }
   }
 }

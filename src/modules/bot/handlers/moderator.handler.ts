@@ -4,9 +4,11 @@ import { AppealService } from "../../appeal/services/appeal.service";
 import { UserService } from "../../user/services/user.service";
 import { DistrictService } from "../../district/services/district.service";
 import { FileService } from "../../file/services/file.service";
-import { InlineKeyboard } from "grammy";
+import { NotificationService } from "../../notification/services/notification.service";
+import { InlineKeyboard, InputFile } from "grammy";
 import { formatDate, formatDateTime, getDaysFromNow, getDateInTashkent, parseDate } from "../../../common/utils/date.util";
 import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
+import * as ExcelJS from "exceljs";
 
 export class ModeratorHandler {
   constructor(
@@ -15,6 +17,7 @@ export class ModeratorHandler {
     private userService: UserService,
     private districtService: DistrictService,
     private fileService: FileService,
+    private notificationService: NotificationService,
   ) { }
 
   /**
@@ -316,7 +319,19 @@ export class ModeratorHandler {
           : "✅ Обращение успешно закрыто!\n\nОтвет отправлен пользователю.",
       );
 
-      // TODO: Notify user about closed appeal with answer
+      // Notify user about closed appeal with answer
+      const appeal = await this.appealService.getAppealById(appealId);
+      if (appeal) {
+        const appealUser = await this.userService.findById(appeal.user_id);
+        if (appealUser) {
+          await this.notificationService.notifyUserAboutAppealClosure(
+            appeal,
+            appealUser,
+            data.moderatorAnswerText,
+            data.moderatorAnswerFiles,
+          );
+        }
+      }
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
@@ -395,8 +410,25 @@ export class ModeratorHandler {
           : `✅ Обращение переслано в ${districtName}.`,
       );
 
-      // TODO: Notify new district moderators
-      // TODO: Notify user about forwarding
+      // Notify new district moderators
+      const appeal = await this.appealService.getAppealById(appealId);
+      if (appeal) {
+        await this.notificationService.notifyModeratorsAboutForwarding(
+          appeal,
+          targetDistrictId,
+          user,
+        );
+
+        // Notify user about forwarding
+        const appealUser = await this.userService.findById(appeal.user_id);
+        if (appealUser) {
+          await this.notificationService.notifyUserAboutForwarding(
+            appeal,
+            appealUser,
+            targetDistrictId,
+          );
+        }
+      }
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
@@ -583,7 +615,415 @@ export class ModeratorHandler {
         }
       }
 
-      // TODO: Notify user about extension
+      // Notify user about extension
+      const appealUser = await this.userService.findById(appeal.user_id);
+      if (appealUser) {
+        await this.notificationService.notifyUserAboutExtension(
+          appeal,
+          appealUser,
+          newDueDate.toDate(),
+        );
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  // ==================== ADMIN-SPECIFIC FEATURES ====================
+
+  /**
+   * Show all active appeals with district filter (Admin only)
+   */
+  async showAllActiveAppeals(ctx: BotContext) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user || user.type !== "admin") {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    // Get all districts
+    const districts = await this.districtService.getAllDistricts();
+
+    const keyboard = new InlineKeyboard();
+
+    // Add "All Districts" button
+    keyboard
+      .text(
+        language === "uz" ? "🌐 Barcha tumanlar" : "🌐 Все районы",
+        "admin_filter_all",
+      )
+      .row();
+
+    // Add button for each district
+    for (const district of districts) {
+      const districtName = language === "uz" ? district.name_uz : district.name_ru;
+      keyboard.text(`📍 ${districtName}`, `admin_filter_${district.id}`).row();
+    }
+
+    const message =
+      language === "uz"
+        ? "🔍 *Tumanni tanlang:*\n\nBarcha murojaatlarni ko'rish uchun \"Barcha tumanlar\" tugmasini bosing yoki ma'lum bir tumanni tanlang."
+        : "🔍 *Выберите район:*\n\nНажмите \"Все районы\" для просмотра всех обращений или выберите конкретный район.";
+
+    await ctx.reply(message, {
+      reply_markup: keyboard,
+      parse_mode: "Markdown",
+    });
+  }
+
+  /**
+   * Show appeals filtered by district (Admin only)
+   */
+  async showAppealsByDistrictFilter(
+    ctx: BotContext,
+    districtId: number | null,
+  ) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user || user.type !== "admin") {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      // Fetch appeals with optional district filter
+      const appeals = await this.appealService.getAllAppeals(
+        districtId || undefined,
+        "new",
+      );
+
+      if (appeals.length === 0) {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "📋 Hozircha faol murojaatlar yo'q"
+            : "📋 Пока нет активных обращений",
+        );
+        return;
+      }
+
+      // Get district name if filtering
+      let districtName = language === "uz" ? "Barcha tumanlar" : "Все районы";
+      if (districtId) {
+        const district = await this.districtService.findDistrictById(districtId);
+        districtName = language === "uz"
+          ? district?.name_uz || "N/A"
+          : district?.name_ru || "N/A";
+      }
+
+      // Format appeals list with buttons
+      let message =
+        language === "uz"
+          ? `📋 *Faol murojaatlar (${appeals.length})*\n📍 *Tuman:* ${districtName}\n\n`
+          : `📋 *Активные обращения (${appeals.length})*\n📍 *Район:* ${districtName}\n\n`;
+
+      const keyboard = new InlineKeyboard();
+
+      // Group appeals by district if showing all
+      const appealsByDistrict = new Map<number, typeof appeals>();
+      for (const appeal of appeals) {
+        if (!appealsByDistrict.has(appeal.district_id)) {
+          appealsByDistrict.set(appeal.district_id, []);
+        }
+        appealsByDistrict.get(appeal.district_id)!.push(appeal);
+      }
+
+      // Display appeals
+      if (districtId) {
+        // Single district view - show detailed list
+        for (const appeal of appeals) {
+          const daysLeft = getDaysFromNow(appeal.due_date);
+          const urgencyEmoji =
+            daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+
+          // Get user info
+          const appealUser = await this.userService.findById(appeal.user_id);
+          const userName = appealUser?.full_name || "Unknown";
+
+          message += `${urgencyEmoji} *${appeal.appeal_number}*\n`;
+          message += `   ${language === "uz" ? "Foydalanuvchi" : "Пользователь"}: ${userName}\n`;
+          message += `   ${language === "uz" ? "Muddat" : "Срок"}: ${formatDate(appeal.due_date)} (${daysLeft} ${language === "uz" ? "kun" : "дней"})\n\n`;
+
+          // Add button for this appeal
+          keyboard
+            .text(
+              `${urgencyEmoji} ${appeal.appeal_number}`,
+              `view_appeal_${appeal.id}`,
+            )
+            .row();
+        }
+      } else {
+        // All districts view - group by district
+        for (const [distId, distAppeals] of appealsByDistrict) {
+          const district = await this.districtService.findDistrictById(distId);
+          const distName =
+            language === "uz"
+              ? district?.name_uz || "N/A"
+              : district?.name_ru || "N/A";
+
+          message += `📍 *${distName}* (${distAppeals.length})\n`;
+
+          for (const appeal of distAppeals.slice(0, 3)) {
+            // Show first 3 per district
+            const daysLeft = getDaysFromNow(appeal.due_date);
+            const urgencyEmoji =
+              daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+            message += `   ${urgencyEmoji} ${appeal.appeal_number} - ${formatDate(appeal.due_date)}\n`;
+
+            // Add button
+            keyboard
+              .text(
+                `${urgencyEmoji} ${appeal.appeal_number}`,
+                `view_appeal_${appeal.id}`,
+              )
+              .row();
+          }
+
+          if (distAppeals.length > 3) {
+            message += `   ${language === "uz" ? "va yana" : "и еще"} ${distAppeals.length - 3}...\n`;
+          }
+          message += `\n`;
+        }
+      }
+
+      // Add back button
+      keyboard.text(
+        language === "uz" ? "⬅️ Filterni o'zgartirish" : "⬅️ Изменить фильтр",
+        "admin_change_filter",
+      );
+
+      await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+        parse_mode: "Markdown",
+      });
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Show statistics (for moderators and admins)
+   */
+  async showStatistics(ctx: BotContext) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user || !["moderator", "admin"].includes(user.type || "")) {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      // Get statistics (district-specific for moderators, all for admins)
+      const districtId =
+        user.type === "moderator" ? user.district_id : undefined;
+      const stats = await this.appealService.getStatistics(districtId);
+
+      let message =
+        language === "uz"
+          ? "📊 *Statistika*\n\n"
+          : "📊 *Статистика*\n\n";
+
+      // Show district name for moderators
+      if (districtId) {
+        const district = await this.districtService.findDistrictById(districtId);
+        const districtName =
+          language === "uz"
+            ? district?.name_uz || "N/A"
+            : district?.name_ru || "N/A";
+        message += `📍 *${language === "uz" ? "Tuman" : "Район"}:* ${districtName}\n\n`;
+      } else {
+        message +=
+          language === "uz"
+            ? "📍 *Barcha tumanlar*\n\n"
+            : "📍 *Все районы*\n\n";
+      }
+
+      message +=
+        language === "uz"
+          ? `📝 *Jami murojaatlar:* ${stats.total}\n\n`
+          : `📝 *Всего обращений:* ${stats.total}\n\n`;
+
+      // Show by status
+      message += language === "uz" ? "*Holat bo'yicha:*\n" : "*По статусам:*\n";
+      const statusLabels = {
+        new: language === "uz" ? "Yangi" : "Новые",
+        in_progress: language === "uz" ? "Ko'rib chiqilmoqda" : "В обработке",
+        closed: language === "uz" ? "Yopilgan" : "Закрытые",
+        forwarded: language === "uz" ? "Yo'naltirilgan" : "Перенаправленные",
+        overdue: language === "uz" ? "Muddati o'tgan" : "Просроченные",
+      };
+
+      Object.entries(statusLabels).forEach(([status, label]) => {
+        const count = stats.byStatus[status] || 0;
+        message += `   • ${label}: ${count}\n`;
+      });
+
+      message += `\n`;
+      message +=
+        language === "uz"
+          ? `🔴 *Muddati o'tgan:* ${stats.overdue}\n`
+          : `🔴 *Просроченные:* ${stats.overdue}\n`;
+      message +=
+        language === "uz"
+          ? `⏱ *O'rtacha javob vaqti:* ${stats.avgResponseTime} kun\n`
+          : `⏱ *Среднее время ответа:* ${stats.avgResponseTime} дней\n`;
+
+      // Add export button
+      const keyboard = new InlineKeyboard().text(
+        language === "uz" ? "📥 Excel yuklab olish" : "📥 Скачать Excel",
+        user.type === "moderator"
+          ? `export_excel_${districtId}`
+          : "export_excel_all",
+      );
+
+      await ctx.reply(message, {
+        reply_markup: keyboard,
+        parse_mode: "Markdown",
+      });
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Generate and send Excel report
+   */
+  async exportToExcel(ctx: BotContext, districtId?: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user || !["moderator", "admin"].includes(user.type || "")) {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      await ctx.reply(
+        language === "uz"
+          ? "📄 Excel fayli tayyorlanmoqda..."
+          : "📄 Подготовка Excel файла...",
+      );
+
+      // Get data for export
+      const appeals = await this.appealService.getAppealsForExport(districtId);
+
+      // Create workbook
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(
+        language === "uz" ? "Murojaatlar" : "Обращения",
+      );
+
+      // Define columns
+      worksheet.columns = [
+        {
+          header: language === "uz" ? "Raqam" : "Номер",
+          key: "appeal_number",
+          width: 15,
+        },
+        {
+          header: language === "uz" ? "Holat" : "Статус",
+          key: "status",
+          width: 15,
+        },
+        {
+          header: language === "uz" ? "Foydalanuvchi" : "Пользователь",
+          key: "user_name",
+          width: 25,
+        },
+        {
+          header: language === "uz" ? "Telefon" : "Телефон",
+          key: "user_phone",
+          width: 15,
+        },
+        {
+          header: language === "uz" ? "Tuman" : "Район",
+          key: "district_name",
+          width: 20,
+        },
+        {
+          header: language === "uz" ? "Murojaat matni" : "Текст обращения",
+          key: "appeal_text",
+          width: 40,
+        },
+        {
+          header: language === "uz" ? "Yaratilgan" : "Создано",
+          key: "created_at",
+          width: 20,
+        },
+        {
+          header: language === "uz" ? "Muddat" : "Срок",
+          key: "due_date",
+          width: 20,
+        },
+        {
+          header: language === "uz" ? "Yopilgan" : "Закрыто",
+          key: "closed_at",
+          width: 20,
+        },
+        {
+          header: language === "uz" ? "Javob" : "Ответ",
+          key: "answer_text",
+          width: 40,
+        },
+      ];
+
+      // Add rows
+      appeals.forEach((appeal) => {
+        worksheet.addRow({
+          appeal_number: appeal.appeal_number,
+          status: this.i18nService.t(
+            `appeal.list.status_${appeal.status}`,
+            language,
+          ),
+          user_name: appeal.user_name,
+          user_phone: appeal.user_phone,
+          district_name: appeal.district_name,
+          appeal_text: appeal.appeal_text || "",
+          created_at: appeal.created_at
+            ? formatDateTime(appeal.created_at)
+            : "",
+          due_date: appeal.due_date ? formatDate(appeal.due_date) : "",
+          closed_at: appeal.closed_at ? formatDateTime(appeal.closed_at) : "",
+          answer_text: appeal.answer_text || "",
+        });
+      });
+
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" },
+      };
+
+      // Generate buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+
+      // Generate filename with timestamp
+      const timestamp = getDateInTashkent().format("YYYY-MM-DD_HH-mm");
+      const filename = `appeals_${timestamp}.xlsx`;
+
+      // Send file
+      await ctx.replyWithDocument(new InputFile(buffer as Buffer, filename), {
+        caption:
+          language === "uz"
+            ? `📊 Jami ${appeals.length} ta murojaat`
+            : `📊 Всего ${appeals.length} обращений`,
+      });
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));

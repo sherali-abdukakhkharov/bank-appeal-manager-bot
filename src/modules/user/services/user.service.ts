@@ -85,6 +85,10 @@ export class UserService {
     return await this.userRepository.findModeratorsByDistrict(districtId);
   }
 
+  async getModeratorsByDistrict(districtId: number): Promise<User[]> {
+    return await this.userRepository.findModeratorsByDistrict(districtId);
+  }
+
   async findById(id: number): Promise<User | null> {
     return await this.userRepository.findById(id);
   }

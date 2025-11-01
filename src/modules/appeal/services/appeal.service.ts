@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AppealRepository } from "../repositories/appeal.repository";
 import { UserService } from "../../user/services/user.service";
 import { CreateAppealDto, Appeal } from "../interfaces/appeal.interface";
-import dayjs from "dayjs";
+import { getDateInTashkent } from "../../../common/utils/date.util";
 
 @Injectable()
 export class AppealService {
@@ -51,8 +51,8 @@ export class AppealService {
       appealNumber = await this.appealRepository.getNextAppealNumber();
     }
 
-    // Calculate due date (+15 days)
-    const dueDate = dayjs().add(15, "day").toDate();
+    // Calculate due date (+15 days) in Tashkent timezone
+    const dueDate = getDateInTashkent().add(15, "day").endOf("day").toDate();
 
     // Create appeal
     return await this.appealRepository.create(dto, appealNumber, dueDate);
@@ -153,5 +153,52 @@ export class AppealService {
     moderatorId: number,
   ): Promise<void> {
     await this.appealRepository.extendDueDate(appealId, newDueDate, moderatorId);
+  }
+
+  /**
+   * Get appeals that need deadline reminders (5 days or less remaining)
+   */
+  async getAppealsNeedingReminders(): Promise<Appeal[]> {
+    return await this.appealRepository.findAppealsNeedingReminders();
+  }
+
+  /**
+   * Get appeal details with answer and history
+   */
+  async getAppealDetails(appealId: number) {
+    const appeal = await this.appealRepository.findById(appealId);
+    if (!appeal) {
+      return null;
+    }
+
+    const answer = await this.appealRepository.findAnswerByAppealId(appealId);
+    const logs = await this.appealRepository.findLogsByAppealId(appealId);
+
+    return {
+      appeal,
+      answer,
+      logs,
+    };
+  }
+
+  /**
+   * Get all appeals (for admins) with optional district filter
+   */
+  async getAllAppeals(districtId?: number, status?: string): Promise<Appeal[]> {
+    return await this.appealRepository.findAllAppeals(districtId, status);
+  }
+
+  /**
+   * Get appeal statistics
+   */
+  async getStatistics(districtId?: number) {
+    return await this.appealRepository.getStatistics(districtId);
+  }
+
+  /**
+   * Get appeals for Excel export
+   */
+  async getAppealsForExport(districtId?: number): Promise<any[]> {
+    return await this.appealRepository.getAppealsForExport(districtId);
   }
 }

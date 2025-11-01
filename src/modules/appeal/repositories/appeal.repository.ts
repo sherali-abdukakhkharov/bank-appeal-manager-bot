@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "../../../database/database.service";
 import { Appeal, CreateAppealDto, AppealApprovalRequest } from "../interfaces/appeal.interface";
+import { getDateInTashkent } from "../../../common/utils/date.util";
 
 @Injectable()
 export class AppealRepository {
@@ -75,7 +76,7 @@ export class AppealRepository {
    * Get next appeal number for the year
    */
   async getNextAppealNumber(): Promise<string> {
-    const year = new Date().getFullYear();
+    const year = getDateInTashkent().year();
     const prefix = `${year}-`;
 
     const lastAppeal = await this.db("appeals")
@@ -158,8 +159,8 @@ export class AppealRepository {
         .update({
           status: "closed",
           closed_by_moderator_id: moderatorId,
-          closed_at: new Date(),
-          updated_at: new Date(),
+          closed_at: getDateInTashkent().toDate(),
+          updated_at: getDateInTashkent().toDate(),
         });
 
       // For JSONB columns, use raw SQL to properly cast the JSON
@@ -202,7 +203,7 @@ export class AppealRepository {
         .update({
           district_id: targetDistrictId,
           status: "forwarded",
-          updated_at: new Date(),
+          updated_at: getDateInTashkent().toDate(),
         });
 
       // Create log entry
@@ -233,7 +234,7 @@ export class AppealRepository {
         .where("id", appealId)
         .update({
           due_date: newDueDate,
-          updated_at: new Date(),
+          updated_at: getDateInTashkent().toDate(),
         });
 
       // Create log entry
@@ -245,5 +246,148 @@ export class AppealRepository {
         moderator_id: moderatorId,
       });
     });
+  }
+
+  /**
+   * Find active appeals that need deadline reminders (5 days or less remaining)
+   * This includes overdue appeals
+   */
+  async findAppealsNeedingReminders(): Promise<Appeal[]> {
+    // Calculate 5 days from now in Tashkent timezone
+    const fiveDaysFromNow = getDateInTashkent()
+      .add(5, "day")
+      .endOf("day")
+      .toDate();
+
+    return await this.db("appeals")
+      .whereIn("status", ["new", "in_progress", "forwarded"])
+      .where("due_date", "<=", fiveDaysFromNow) // Due within 5 days or overdue
+      .orderBy("due_date", "asc");
+  }
+
+  /**
+   * Get appeal answer by appeal ID
+   */
+  async findAnswerByAppealId(appealId: number): Promise<any | null> {
+    const answer = await this.db("appeal_answers")
+      .where("appeal_id", appealId)
+      .first();
+
+    return answer || null;
+  }
+
+  /**
+   * Get appeal logs (history) by appeal ID
+   */
+  async findLogsByAppealId(appealId: number): Promise<any[]> {
+    return await this.db("appeal_logs")
+      .where("appeal_id", appealId)
+      .orderBy("created_at", "asc");
+  }
+
+  /**
+   * Get all appeals (for admins) with optional district filter
+   */
+  async findAllAppeals(districtId?: number, status?: string): Promise<Appeal[]> {
+    let query = this.db("appeals");
+
+    if (districtId) {
+      query = query.where("district_id", districtId);
+    }
+
+    if (status) {
+      query = query.where("status", status);
+    }
+
+    return await query.orderBy("due_date", "asc");
+  }
+
+  /**
+   * Get statistics for appeals
+   */
+  async getStatistics(districtId?: number) {
+    let query = this.db("appeals");
+
+    if (districtId) {
+      query = query.where("district_id", districtId);
+    }
+
+    // Total count
+    const totalResult = await query.clone().count("* as count").first();
+    const total = parseInt(totalResult?.count as string) || 0;
+
+    // Count by status
+    const byStatus = await query
+      .clone()
+      .select("status")
+      .count("* as count")
+      .groupBy("status");
+
+    // Average response time for closed appeals
+    const avgResponseTimeResult = await this.db("appeals")
+      .where("status", "closed")
+      .whereNotNull("closed_at")
+      .select(
+        this.db.raw(
+          "AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400) as avg_days",
+        ),
+      )
+      .first() as any;
+
+    const avgResponseTime = avgResponseTimeResult?.avg_days
+      ? parseFloat(avgResponseTimeResult.avg_days)
+      : 0;
+
+    // Overdue appeals
+    const now = getDateInTashkent().toDate();
+    const overdueResult = await query
+      .clone()
+      .where("due_date", "<", now)
+      .whereIn("status", ["new", "in_progress", "forwarded"])
+      .count("* as count")
+      .first();
+
+    const overdue = parseInt(overdueResult?.count as string) || 0;
+
+    return {
+      total,
+      byStatus: byStatus.reduce(
+        (acc, item) => {
+          acc[item.status] = parseInt(item.count as string);
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
+      avgResponseTime: Math.round(avgResponseTime * 10) / 10,
+      overdue,
+    };
+  }
+
+  /**
+   * Get detailed appeals for Excel export
+   */
+  async getAppealsForExport(districtId?: number): Promise<any[]> {
+    let query = this.db("appeals as a")
+      .leftJoin("users as u", "a.user_id", "u.id")
+      .leftJoin("districts as d", "a.district_id", "d.id")
+      .leftJoin("appeal_answers as ans", "a.id", "ans.appeal_id")
+      .select(
+        "a.appeal_number",
+        "a.status",
+        "u.full_name as user_name",
+        "u.phone as user_phone",
+        "d.name_uz as district_name",
+        "a.text as appeal_text",
+        "a.created_at",
+        "a.due_date",
+        "a.closed_at",
+        "ans.text as answer_text",
+      );
+
+    if (districtId) {
+      query = query.where("a.district_id", districtId);
+    }
+
+    return await query.orderBy("a.created_at", "desc");
   }
 }

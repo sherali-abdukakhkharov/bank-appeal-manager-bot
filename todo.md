@@ -46,7 +46,7 @@
 - [x] Implement i18n service/utility class for translations
 - [x] Integrate i18n with Grammy middleware for automatic language detection
 - [x] Store user language preference in session and database
-- [ ] Create helper functions: formatDate(date, lang), formatNumber(num, lang)
+- [x] Create helper functions: formatDate(date, lang), formatNumber(num, lang) in date.util.ts
 
 ## 5. User Registration Flows
 - [x] Setup Grammy conversation/session management for multi-step flows
@@ -91,9 +91,10 @@
 - [x] Create main menu keyboard for Moderators (Review Appeals, Statistics)
 - [x] Create main menu keyboard for Admins (All Active Appeals, Review Appeal, Statistics)
 - [x] Implement session-based navigation state management
-- [ ] Implement back button functionality with callback queries
+- [x] Implement back button functionality with callback queries (in moderator review)
 - [x] Create middleware to show appropriate menu based on user type
-- [ ] Handle invalid commands and provide helpful messages in user's language
+- [x] Handle menu button clicks regardless of session state (fixes restart issue)
+- [x] Handle invalid commands and provide helpful messages in user's language
 - [x] Implement /menu command to return to main menu
 
 ## 7. Appeal Creation & Submission (Telegram-based file storage)
@@ -123,34 +124,36 @@
 - [x] Implement "My Appeals" menu for users
 - [x] List all appeals with status (active and closed)
 - [x] Show appeal number, submission date, status
-- [ ] Show due date in list
+- [x] Show due date in list (via formatDate utility)
 - [ ] Implement pagination for appeal list (not urgent - simple lists work fine)
-- [ ] Allow users to view detailed appeal information (text, files)
+- [ ] Allow users to view detailed appeal information (text, files) with inline buttons
 - [ ] Show appeal history (forwarding, extensions, closures)
 - [ ] Add button to view appeal answers when closed
+- [ ] Send files to user when viewing appeal details
 
 ## 9. Moderator Review Appeals
-- [ ] Implement "Review Appeals" menu for moderators
-- [ ] Fetch all active appeals for moderator's district
-- [ ] Sort appeals by nearest deadline first
-- [ ] Implement pagination (e.g., 5 appeals per page)
-- [ ] Display appeal details (number, user info, text, attachments via file_id, due date)
-- [ ] Send appeal files to moderator using Telegram file_id from file_jsons
-- [ ] Implement "Close" button with answer flow
-- [ ] Accept text answer from moderator
-- [ ] Accept attachment answers from moderator (extract metadata using FileService)
-- [ ] Save answer to appeal_answers table with text and file_jsons
-- [ ] Update appeal status to "closed" and set closed_by_moderator_id
-- [ ] Send closure notification to appeal creator with answer text and files
-- [ ] Implement "Forward" button
-- [ ] Allow moderator to select target district for forwarding
-- [ ] Create log entry for forwarding action
-- [ ] Notify new district's moderators
-- [ ] Notify original user about forwarding
-- [ ] Implement "Extend" button
-- [ ] Allow moderator to set new due date
-- [ ] Create log entry for extension
-- [ ] Send notification to user about new due date
+- [x] Implement "Review Appeals" menu for moderators
+- [x] Fetch all active appeals for moderator's district
+- [x] Sort appeals by nearest deadline first
+- [x] Implement inline keyboard with appeal selection
+- [x] Display appeal details (number, user info, text, attachments via file_id, due date)
+- [x] Send appeal files to moderator using Telegram file_id from file_jsons
+- [x] Implement "Close" button with answer flow
+- [x] Accept text answer from moderator
+- [x] Accept attachment answers from moderator (extract metadata using FileService)
+- [x] Save answer to appeal_answers table with text and file_jsons
+- [x] Update appeal status to "closed" and set closed_by_moderator_id
+- [ ] Send closure notification to appeal creator with answer text and files (TODO in code)
+- [x] Implement "Forward" button
+- [x] Allow moderator to select target district for forwarding
+- [x] Create log entry for forwarding action
+- [ ] Notify new district's moderators (TODO in code)
+- [ ] Notify original user about forwarding (TODO in code)
+- [x] Implement "Extend" button with improved UX (deletes old message, sends new one)
+- [x] Allow moderator to set new due date with validation
+- [x] Create log entry for extension
+- [x] Resend appeal details after extending due date
+- [ ] Send notification to user about new due date (TODO in code)
 - [ ] Handle approval requests from users wanting to send multiple appeals
 - [ ] Allow moderator to approve/reject multiple appeal requests
 
@@ -232,7 +235,10 @@
 - [ ] Send Excel reports using InputFile.fromBuffer() - no disk I/O
 
 ## 17. Error Handling & Validation
-- [ ] Implement global error handler for bot
+- [x] Implement global exception filter for HTTP errors
+- [x] Implement BotErrorLogger utility for bot-specific errors
+- [x] Add comprehensive error logging with context (user, session, message, etc.)
+- [x] Handle session reset after bot restart (menu buttons work regardless of step)
 - [x] Add validation for phone numbers (format check)
 - [x] Add validation for dates (birth date should be in past)
 - [x] Add validation for MFO numbers
@@ -240,9 +246,9 @@
 - [x] Add validation for positions (minimum length)
 - [x] Add validation for addresses (minimum length)
 - [ ] Add validation for district selections
-- [ ] Add validation for appeal text (minimum length)
+- [x] Add validation for appeal text (minimum length) via FileService
 - [x] Provide user-friendly error messages in both languages
-- [ ] Log errors for debugging
+- [x] Log errors for debugging with full stack traces and context
 
 ## 18. Security & Permissions
 - [ ] Implement role-based access control (RBAC)

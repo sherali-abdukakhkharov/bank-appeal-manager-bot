@@ -9,6 +9,7 @@ import { ReportModule } from "./modules/report/report.module";
 import { CronModule } from "./modules/cron/cron.module";
 import { FileModule } from "./modules/file/file.module";
 import { I18nModule } from "./modules/i18n/i18n.module";
+import { NotificationModule } from "./modules/notification/notification.module";
 import configuration from "./config/configuration";
 
 @Module({
@@ -26,6 +27,7 @@ import configuration from "./config/configuration";
     CronModule,
     FileModule,
     I18nModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}
