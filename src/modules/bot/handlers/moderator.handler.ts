@@ -44,7 +44,7 @@ export class ModeratorHandler {
     // Fetch active appeals for moderator's district, sorted by nearest deadline
     const appeals = await this.appealService.getAppealsByDistrictAndStatus(
       user.district_id!,
-      "new",
+      ["new", 'in_progress', 'forwarded', 'overdue'],
     );
 
     if (appeals.length === 0) {

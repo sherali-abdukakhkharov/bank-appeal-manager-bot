@@ -185,11 +185,11 @@ export class AppealRepository {
    */
   async findByDistrictAndStatus(
     districtId: number,
-    status: string,
+    statuses: string[],
   ): Promise<Appeal[]> {
     return await this.db("appeals")
       .where("district_id", districtId)
-      .where("status", status)
+      .whereIn("status", statuses)
       .orderBy("due_date", "asc");
   }
 

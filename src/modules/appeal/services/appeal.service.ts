@@ -156,11 +156,11 @@ export class AppealService {
    */
   async getAppealsByDistrictAndStatus(
     districtId: number,
-    status: string,
+    statuses: string[],
   ): Promise<Appeal[]> {
     return await this.appealRepository.findByDistrictAndStatus(
       districtId,
-      status,
+      statuses,
     );
   }
 
