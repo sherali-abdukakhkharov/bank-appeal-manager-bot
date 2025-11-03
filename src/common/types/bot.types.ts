@@ -44,7 +44,9 @@ export type RegistrationStep =
   | "moderator_close_appeal_files"
   | "moderator_extend_due_date"
   // Approval requests
-  | "reject_request_reason";
+  | "reject_request_reason"
+  // Answer approval
+  | "reject_answer_reason";
 
 /**
  * User types
@@ -110,6 +112,9 @@ export interface SessionData {
 
     // Approval requests
     rejectionRequestId?: number;
+
+    // Answer approval
+    rejectionAnswerId?: number;
   };
 }
 

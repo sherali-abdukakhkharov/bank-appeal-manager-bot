@@ -410,4 +410,66 @@ export class NotificationService {
       this.logger.error("Error notifying user about approval decision:", error);
     }
   }
+
+  /**
+   * Notify moderators about answer rejection
+   */
+  async notifyModeratorsAboutAnswerRejection(
+    appeal: Appeal,
+    user: User,
+    rejectionReason: string,
+  ): Promise<void> {
+    if (!this.bot) {
+      this.logger.warn("Bot instance not set, cannot send notifications");
+      return;
+    }
+
+    try {
+      const moderators = await this.userService.getModeratorsByDistrict(
+        appeal.district_id,
+      );
+      const district = await this.districtService.findDistrictById(
+        appeal.district_id,
+      );
+
+      for (const moderator of moderators) {
+        try {
+          const message =
+            moderator.language === "uz"
+              ? `❌ *Javob rad etildi*\n\n` +
+                `📝 Murojaat raqami: ${appeal.appeal_number}\n` +
+                `👤 Foydalanuvchi: ${user.full_name}\n` +
+                `📞 Telefon: ${user.phone}\n` +
+                `📍 Tuman: ${district?.name_uz || "N/A"}\n\n` +
+                `💬 *Rad etish sababi:*\n${rejectionReason}\n\n` +
+                `Murojaat qayta ochildi va javob kutmoqda.`
+              : `❌ *Ответ отклонен*\n\n` +
+                `📝 Номер обращения: ${appeal.appeal_number}\n` +
+                `👤 Пользователь: ${user.full_name}\n` +
+                `📞 Телефон: ${user.phone}\n` +
+                `📍 Район: ${district?.name_ru || "N/A"}\n\n` +
+                `💬 *Причина отклонения:*\n${rejectionReason}\n\n` +
+                `Обращение открыто заново и ожидает ответа.`;
+
+          await this.bot.api.sendMessage(moderator.telegram_id, message, {
+            parse_mode: "Markdown",
+          });
+
+          this.logger.log(
+            `Notification sent to moderator ${moderator.id} about answer rejection for appeal ${appeal.id}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to send notification to moderator ${moderator.id}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        "Error notifying moderators about answer rejection:",
+        error,
+      );
+    }
+  }
 }

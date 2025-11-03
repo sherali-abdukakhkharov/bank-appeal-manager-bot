@@ -129,6 +129,17 @@ export class AppealRepository {
   }
 
   /**
+   * Find approved approval request by user ID
+   */
+  async findApprovedApprovalRequest(userId: number): Promise<AppealApprovalRequest | null> {
+    return await this.db("appeal_approval_requests")
+      .where("user_id", userId)
+      .where("status", "approved")
+      .orderBy("resolved_at", "desc")
+      .first();
+  }
+
+  /**
    * Update approval request status
    */
   async updateApprovalRequest(
@@ -145,6 +156,15 @@ export class AppealRepository {
         reason: reason || null,
         resolved_at: getDateInTashkent().toDate(),
       });
+  }
+
+  /**
+   * Delete approval request
+   */
+  async deleteApprovalRequest(requestId: number): Promise<void> {
+    await this.db("appeal_approval_requests")
+      .where("id", requestId)
+      .delete();
   }
 
   /**
@@ -419,5 +439,56 @@ export class AppealRepository {
     }
 
     return await query.orderBy("a.created_at", "desc");
+  }
+
+  /**
+   * Find answer by ID
+   */
+  async findAnswerById(answerId: number) {
+    const answer = await this.db("appeal_answers").where("id", answerId).first();
+    return answer || null;
+  }
+
+  /**
+   * Approve answer
+   */
+  async approveAnswer(answerId: number): Promise<void> {
+    await this.db("appeal_answers")
+      .where("id", answerId)
+      .update({
+        approval_status: "approved",
+        approved_at: getDateInTashkent().toDate(),
+      });
+  }
+
+  /**
+   * Reject answer and reopen appeal
+   */
+  async rejectAnswer(answerId: number, reason: string): Promise<number> {
+    // Get the answer to find the appeal ID
+    const answer = await this.findAnswerById(answerId);
+    if (!answer) {
+      throw new Error("Answer not found");
+    }
+
+    // Update answer with rejection
+    await this.db("appeal_answers")
+      .where("id", answerId)
+      .update({
+        approval_status: "rejected",
+        rejection_reason: reason,
+        rejected_at: getDateInTashkent().toDate(),
+      });
+
+    // Reopen the appeal by changing status back to "new"
+    await this.db("appeals")
+      .where("id", answer.appeal_id)
+      .update({
+        status: "new",
+        closed_at: null,
+        closed_by_moderator_id: null,
+      });
+
+    return answer.appeal_id;
   }
 }

@@ -29,6 +29,10 @@ export interface AppealAnswer {
   moderator_id: number;
   text?: string;
   file_jsons?: FileMetadata[];
+  approval_status: "pending" | "approved" | "rejected";
+  rejection_reason?: string;
+  approved_at?: Date;
+  rejected_at?: Date;
   created_at: Date;
 }
 

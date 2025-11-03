@@ -44,22 +44,28 @@ export class AppealHandler {
     );
 
     if (activeAppeal) {
-      // User already has active appeal - ask if they want to request approval
-      const keyboard = new InlineKeyboard()
-        .text(
-          language === "uz"
-            ? "✅ Ruxsat so'rash"
-            : "✅ Запросить разрешение",
-          "request_approval",
-        )
-        .row()
-        .text(language === "uz" ? "❌ Bekor qilish" : "❌ Отменить", "cancel");
+      // Check if user has an approved approval request
+      const approvedRequest = await this.appealService.getApprovedApprovalRequest(user.id);
 
-      await ctx.reply(
-        this.i18nService.t("appeal.send.already_active", language),
-        { reply_markup: keyboard },
-      );
-      return;
+      if (!approvedRequest) {
+        // User already has active appeal and no approved request - ask if they want to request approval
+        const keyboard = new InlineKeyboard()
+          .text(
+            language === "uz"
+              ? "✅ Ruxsat so'rash"
+              : "✅ Запросить разрешение",
+            "request_approval",
+          )
+          .row()
+          .text(language === "uz" ? "❌ Bekor qilish" : "❌ Отменить", "cancel");
+
+        await ctx.reply(
+          this.i18nService.t("appeal.send.already_active", language),
+          { reply_markup: keyboard },
+        );
+        return;
+      }
+      // If there's an approved request, continue with appeal creation
     }
 
     // Initialize appeal data
@@ -209,6 +215,12 @@ export class AppealHandler {
         custom_number: data.appealCustomNumber,
       });
 
+      // If user had an approved request, delete it now that they've used it
+      const approvedRequest = await this.appealService.getApprovedApprovalRequest(user.id);
+      if (approvedRequest) {
+        await this.appealService.deleteApprovalRequest(approvedRequest.id);
+      }
+
       // Clear appeal data
       ctx.session.data.appealText = undefined;
       ctx.session.data.appealFiles = [];
@@ -258,6 +270,17 @@ export class AppealHandler {
     }
 
     try {
+      // Check if user already has a pending request
+      const existingRequest = await this.appealService.getPendingApprovalRequest(user.id);
+      if (existingRequest) {
+        await ctx.editMessageText(
+          language === "uz"
+            ? "⚠️ Sizda allaqachon kutilayotgan ruxsat so'rovi mavjud.\n\nModerator javobini kuting."
+            : "⚠️ У вас уже есть ожидающий запрос на разрешение.\n\nДождитесь ответа модератора."
+        );
+        return;
+      }
+
       const request = await this.appealService.requestMultipleAppealApproval(user.id);
 
       await ctx.editMessageText(
@@ -272,9 +295,7 @@ export class AppealHandler {
       );
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
-      await ctx.reply(
-        error instanceof Error ? error.message : this.i18nService.t("common.error", language),
-      );
+      await ctx.reply(this.i18nService.t("common.error", language));
     }
   }
 
@@ -379,6 +400,22 @@ export class AppealHandler {
         message += language === "uz"
           ? `✅ *Javob*:\n${answer.text || ""}\n`
           : `✅ *Ответ*:\n${answer.text || ""}\n`;
+
+        // Show approval status if already processed
+        if (answer.approval_status === "approved") {
+          message += language === "uz"
+            ? `\n✅ *Siz javobni qabul qilgansiz*\n`
+            : `\n✅ *Вы одобрили ответ*\n`;
+        } else if (answer.approval_status === "rejected") {
+          message += language === "uz"
+            ? `\n❌ *Siz javobni rad etgansiz*\n`
+            : `\n❌ *Вы отклонили ответ*\n`;
+          if (answer.rejection_reason) {
+            message += language === "uz"
+              ? `💬 *Sabab:* ${answer.rejection_reason}\n`
+              : `💬 *Причина:* ${answer.rejection_reason}\n`;
+          }
+        }
       }
 
       // Send message
@@ -403,9 +440,26 @@ export class AppealHandler {
         }
       }
 
-      // Show back button
-      const keyboard = new InlineKeyboard()
-        .text(language === "uz" ? "⬅️ Orqaga" : "⬅️ Назад", "back_to_my_appeals");
+      // Show action buttons based on answer status
+      const keyboard = new InlineKeyboard();
+
+      // If answer is pending, show approve/reject buttons
+      if (answer && answer.approval_status === "pending") {
+        keyboard
+          .text(
+            language === "uz" ? "✅ Javobni qabul qilish" : "✅ Одобрить ответ",
+            `approve_answer_${answer.id}`
+          )
+          .row()
+          .text(
+            language === "uz" ? "❌ Javobni rad etish" : "❌ Отклонить ответ",
+            `reject_answer_${answer.id}`
+          )
+          .row();
+      }
+
+      // Always show back button
+      keyboard.text(language === "uz" ? "⬅️ Orqaga" : "⬅️ Назад", "back_to_my_appeals");
 
       await ctx.reply(
         language === "uz" ? "Nima qilmoqchisiz?" : "Что вы хотите сделать?",
@@ -514,6 +568,124 @@ export class AppealHandler {
       }
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
+    }
+  }
+
+  /**
+   * Handle approve answer action
+   */
+  async handleApproveAnswer(ctx: BotContext, answerId: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    try {
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) {
+        BotErrorLogger.logError('User not found', ctx);
+        await ctx.reply(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Approve the answer
+      await this.appealService.approveAnswer(answerId, user.id);
+
+      await ctx.reply(
+        language === "uz"
+          ? "✅ Javob qabul qilindi. Rahmat!\n\nMurojaat yopilgan bo'lib qoladi."
+          : "✅ Ответ одобрен. Спасибо!\n\nОбращение останется закрытым.",
+      );
+
+      // Refresh appeal details to show updated status
+      const details = await this.appealService.getAppealDetailsFromAnswerId(answerId);
+      if (details) {
+        await this.showAppealDetails(ctx, details.appeal.id);
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Handle reject answer action
+   */
+  async handleRejectAnswer(ctx: BotContext, answerId: number) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    await ctx.answerCallbackQuery();
+
+    try {
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) {
+        BotErrorLogger.logError('User not found', ctx);
+        await ctx.reply(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Store answer ID in session for rejection reason input
+      ctx.session.data.rejectionAnswerId = answerId;
+      ctx.session.step = "reject_answer_reason";
+
+      await ctx.reply(
+        language === "uz"
+          ? "❌ Javobni rad etish sababini yozing:\n\n(Bu moderatorga yuboriladi)"
+          : "❌ Напишите причину отклонения ответа:\n\n(Это будет отправлено модератору)",
+      );
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  /**
+   * Handle rejection reason input
+   */
+  async handleRejectAnswerReason(ctx: BotContext, reason: string) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+    const answerId = ctx.session.data.rejectionAnswerId;
+
+    if (!answerId) {
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    try {
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) {
+        BotErrorLogger.logError('User not found', ctx);
+        await ctx.reply(this.i18nService.t("common.error", language));
+        return;
+      }
+
+      // Reject the answer with reason and reopen the appeal
+      const appealId = await this.appealService.rejectAnswer(answerId, user.id, reason.trim());
+
+      // Clear session
+      ctx.session.data.rejectionAnswerId = undefined;
+      ctx.session.step = "main_menu";
+
+      await ctx.reply(
+        language === "uz"
+          ? "❌ Javob rad etildi.\n\nMurojaat qayta ochildi va moderator xabardor qilindi."
+          : "❌ Ответ отклонен.\n\nОбращение открыто заново, модератор уведомлен.",
+      );
+
+      // Notify moderators about rejection
+      const details = await this.appealService.getAppealDetails(appealId);
+      if (details) {
+        await this.notificationService.notifyModeratorsAboutAnswerRejection(
+          details.appeal,
+          user,
+          reason.trim(),
+        );
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
     }
   }
 }

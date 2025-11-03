@@ -73,15 +73,16 @@ export class AppealService {
   }
 
   /**
+   * Get pending approval request for user
+   */
+  async getPendingApprovalRequest(userId: number) {
+    return await this.appealRepository.findPendingApprovalRequest(userId);
+  }
+
+  /**
    * Request approval for multiple appeals
    */
   async requestMultipleAppealApproval(userId: number) {
-    // Check if already has pending request
-    const existingRequest = await this.appealRepository.findPendingApprovalRequest(userId);
-    if (existingRequest) {
-      throw new Error("You already have a pending approval request");
-    }
-
     return await this.appealRepository.createApprovalRequest(userId);
   }
 
@@ -120,6 +121,20 @@ export class AppealService {
    */
   async getApprovalRequestById(requestId: number) {
     return await this.appealRepository.findApprovalRequestById(requestId);
+  }
+
+  /**
+   * Get approved approval request for user
+   */
+  async getApprovedApprovalRequest(userId: number) {
+    return await this.appealRepository.findApprovedApprovalRequest(userId);
+  }
+
+  /**
+   * Delete approval request (after it's been used)
+   */
+  async deleteApprovalRequest(requestId: number): Promise<void> {
+    await this.appealRepository.deleteApprovalRequest(requestId);
   }
 
   /**
@@ -237,5 +252,46 @@ export class AppealService {
    */
   async getAppealsForExport(districtId?: number): Promise<any[]> {
     return await this.appealRepository.getAppealsForExport(districtId);
+  }
+
+  /**
+   * Approve answer
+   */
+  async approveAnswer(answerId: number, userId: number): Promise<void> {
+    await this.appealRepository.approveAnswer(answerId);
+  }
+
+  /**
+   * Reject answer and reopen appeal
+   */
+  async rejectAnswer(
+    answerId: number,
+    userId: number,
+    reason: string,
+  ): Promise<number> {
+    return await this.appealRepository.rejectAnswer(answerId, reason);
+  }
+
+  /**
+   * Get appeal details from answer ID
+   */
+  async getAppealDetailsFromAnswerId(answerId: number) {
+    const answer = await this.appealRepository.findAnswerById(answerId);
+    if (!answer) {
+      return null;
+    }
+
+    const appeal = await this.appealRepository.findById(answer.appeal_id);
+    if (!appeal) {
+      return null;
+    }
+
+    const logs = await this.appealRepository.findLogsByAppealId(appeal.id);
+
+    return {
+      appeal,
+      answer,
+      logs,
+    };
   }
 }

@@ -390,6 +390,18 @@ export class BotService implements OnModuleInit {
       await this.handleRejectRequest(ctx, requestId);
     });
 
+    // Answer Approval - Approve
+    this.bot.callbackQuery(/^approve_answer_(\d+)$/, async (ctx) => {
+      const answerId = parseInt(ctx.match[1]);
+      await this.appealHandler.handleApproveAnswer(ctx, answerId);
+    });
+
+    // Answer Approval - Reject
+    this.bot.callbackQuery(/^reject_answer_(\d+)$/, async (ctx) => {
+      const answerId = parseInt(ctx.match[1]);
+      await this.appealHandler.handleRejectAnswer(ctx, answerId);
+    });
+
     // ==================== CONTACT MESSAGE HANDLERS ====================
 
     this.bot.on("message:contact", async (ctx) => {
@@ -558,6 +570,11 @@ export class BotService implements OnModuleInit {
         // Rejection reason input
         case "reject_request_reason":
           await this.handleRejectReason(ctx, text);
+          break;
+
+        // Answer rejection reason input
+        case "reject_answer_reason":
+          await this.appealHandler.handleRejectAnswerReason(ctx, text);
           break;
 
         case "main_menu":

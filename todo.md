@@ -276,7 +276,27 @@
 - [x] Update registration handler to detect users with type=null
 - [x] Allow testing different roles without losing created appeals
 
-## 22. Additional Features & Polish
+## 22. Answer Approval & User Feedback System
+- [x] Create database migration to add approval tracking fields to appeal_answers table
+- [x] Add approval_status (pending, approved, rejected), rejection_reason, approved_at, rejected_at fields
+- [x] Update AppealAnswer interface with approval tracking fields
+- [x] Add approve/reject buttons when showing closed appeals to users
+- [x] Display approval status if answer is already processed
+- [x] Implement handleApproveAnswer handler in AppealHandler
+- [x] Implement handleRejectAnswer handler with rejection reason input
+- [x] Implement handleRejectAnswerReason for processing rejection text
+- [x] Add approveAnswer, rejectAnswer, and getAppealDetailsFromAnswerId methods to AppealService
+- [x] Implement repository methods: findAnswerById, approveAnswer, rejectAnswer
+- [x] Reopen appeal when answer is rejected (change status from "closed" to "new")
+- [x] Clear closed_at and closed_by_moderator_id when reopening appeal
+- [x] Add notifyModeratorsAboutAnswerRejection method to NotificationService
+- [x] Send notification to moderators with rejection reason when answer is rejected
+- [x] Update bot types to include "reject_answer_reason" step and "rejectionAnswerId" session field
+- [x] Register approve_answer and reject_answer callback handlers in BotService
+- [x] Add text handler for rejection reason input
+- [x] Build and test the implementation
+
+## 23. Additional Features & Polish
 - [ ] Add appeal search functionality by appeal number
 - [ ] Implement appeal priority levels (optional)
 - [ ] Add appeal categories/types (optional)
@@ -286,7 +306,7 @@
 - [ ] Add caching where appropriate
 - [ ] Implement graceful shutdown handling
 
-## 23. NestJS Architecture & Module Organization
+## 24. NestJS Architecture & Module Organization
 - [x] Create AppModule as root module
 - [x] Create DatabaseModule for Knex connection and configuration
 - [x] Create BotModule for Grammy bot instance and updates
