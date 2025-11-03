@@ -5,7 +5,7 @@ import { getDateInTashkent } from "../../../common/utils/date.util";
 
 @Injectable()
 export class AppealRepository {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(private databaseService: DatabaseService) { }
 
   get db() {
     return this.databaseService.knex;
@@ -338,15 +338,15 @@ export class AppealRepository {
   /**
    * Get all appeals (for admins) with optional district filter
    */
-  async findAllAppeals(districtId?: number, status?: string): Promise<Appeal[]> {
+  async findAllAppeals(districtId?: number, statuses?: string[]): Promise<Appeal[]> {
     let query = this.db("appeals");
 
     if (districtId) {
       query = query.where("district_id", districtId);
     }
 
-    if (status) {
-      query = query.where("status", status);
+    if (statuses.length > 0) {
+      query = query.whereIn("status", statuses);
     }
 
     return await query.orderBy("due_date", "asc");

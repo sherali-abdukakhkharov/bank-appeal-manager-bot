@@ -9,7 +9,7 @@ export class AppealService {
   constructor(
     private appealRepository: AppealRepository,
     private userService: UserService,
-  ) {}
+  ) { }
 
   /**
    * Create a new appeal
@@ -236,8 +236,8 @@ export class AppealService {
   /**
    * Get all appeals (for admins) with optional district filter
    */
-  async getAllAppeals(districtId?: number, status?: string): Promise<Appeal[]> {
-    return await this.appealRepository.findAllAppeals(districtId, status);
+  async getAllAppeals(districtId?: number, statuses?: string[]): Promise<Appeal[]> {
+    return await this.appealRepository.findAllAppeals(districtId, statuses);
   }
 
   /**

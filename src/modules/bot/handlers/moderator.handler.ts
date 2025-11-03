@@ -697,7 +697,7 @@ export class ModeratorHandler {
       // Fetch appeals with optional district filter
       const appeals = await this.appealService.getAllAppeals(
         districtId || undefined,
-        "new",
+        ["new", 'in_progress', 'forwarded', 'overdue'],
       );
 
       if (appeals.length === 0) {
