@@ -44,7 +44,7 @@ export class UserService {
   ): Promise<User> {
     const user = await this.userRepository.update(userId, userDto);
 
-    await this.userRepository.createBusinessInfo({
+    await this.userRepository.upsertBusinessInfo({
       user_id: userId,
       ...businessInfo,
     });
@@ -73,7 +73,7 @@ export class UserService {
   ): Promise<User> {
     const user = await this.userRepository.update(userId, userDto);
 
-    await this.userRepository.createGovernmentInfo({
+    await this.userRepository.upsertGovernmentInfo({
       user_id: userId,
       ...govInfo,
     });

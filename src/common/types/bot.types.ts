@@ -46,7 +46,9 @@ export type RegistrationStep =
   // Approval requests
   | "reject_request_reason"
   // Answer approval
-  | "reject_answer_reason";
+  | "reject_answer_reason"
+  // Account reset
+  | "reset_account_confirmation";
 
 /**
  * User types

@@ -147,33 +147,32 @@ export class BotService implements OnModuleInit {
         const user = await this.userService.findByTelegramId(telegramId);
 
         if (user) {
-          // Reset role but keep user data and appeals
-          await this.userService.resetUserRole(user.id);
-
-          // Clear session
-          ctx.session.step = null;
-          ctx.session.data = {};
+          // Set step to confirmation
+          ctx.session.step = "reset_account_confirmation";
           ctx.session.language = user.language || "uz";
 
           await ctx.reply(
-            "✅ Role reset successful!\n\n" +
-            "Your appeals and core data are preserved.\n" +
-            "Use /start to select a new role.\n\n" +
-            "✅ Роль успешно сброшена!\n\n" +
-            "Ваши обращения и основные данные сохранены.\n" +
-            "Используйте /start для выбора новой роли."
+            "⚠️ Haqiqatan ham rolni qayta tiklamoqchimisiz?\n\n" +
+            "Sizning murojaatlaringiz saqlanadi, lekin rol ma'lumotlari o'chiriladi.\n\n" +
+            "Tasdiqlash uchun 'HA' yoki 'YES' deb yozing.\n" +
+            "Bekor qilish uchun /cancel buyrug'ini ishlating.\n\n" +
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+            "⚠️ Вы уверены, что хотите сбросить роль?\n\n" +
+            "Ваши обращения будут сохранены, но данные роли будут удалены.\n\n" +
+            "Напишите 'HA' или 'YES' для подтверждения.\n" +
+            "Используйте /cancel для отмены."
           );
         } else {
           await ctx.reply(
-            "No account found. Use /start to register.\n\n" +
+            "Hisob topilmadi. Ro'yxatdan o'tish uchun /start buyrug'ini ishlating.\n\n" +
             "Аккаунт не найден. Используйте /start для регистрации."
           );
         }
       } catch (error) {
-        console.error("Error resetting role:", error);
+        console.error("Error in reset_account command:", error);
         await ctx.reply(
-          "❌ Error resetting role. Please try again.\n\n" +
-          "❌ Ошибка при сбросе роли. Попробуйте снова."
+          "❌ Xatolik yuz berdi. Qayta urinib ko'ring.\n\n" +
+          "❌ Произошла ошибка. Попробуйте снова."
         );
       }
     });
@@ -577,6 +576,11 @@ export class BotService implements OnModuleInit {
           await this.appealHandler.handleRejectAnswerReason(ctx, text);
           break;
 
+        // Reset account confirmation
+        case "reset_account_confirmation":
+          await this.handleResetAccountConfirmation(ctx, text);
+          break;
+
         case "main_menu":
         case null:
         case undefined:
@@ -826,6 +830,62 @@ export class BotService implements OnModuleInit {
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
+    }
+  }
+
+  private async handleResetAccountConfirmation(ctx: BotContext, text: string) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    try {
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) {
+        await ctx.reply(
+          "Hisob topilmadi.\n\nАккаунт не найден."
+        );
+        return;
+      }
+
+      const normalizedText = text.trim().toUpperCase();
+
+      if (normalizedText === "HA" || normalizedText === "YES") {
+        // User confirmed - reset role
+        await this.userService.resetUserRole(user.id);
+
+        // Clear session properly
+        ctx.session = {
+          step: null,
+          language: user.language || "uz",
+          data: {},
+        };
+
+        await ctx.reply(
+          "✅ Rol muvaffaqiyatli qayta tiklandi!\n\n" +
+          "Sizning murojaatlaringiz va asosiy ma'lumotlaringiz saqlanadi.\n" +
+          "Yangi rolni tanlash uchun /start buyrug'ini ishlating.\n\n" +
+          "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+          "✅ Роль успешно сброшена!\n\n" +
+          "Ваши обращения и основные данные сохранены.\n" +
+          "Используйте /start для выбора новой роли."
+        );
+      } else {
+        // User didn't confirm properly
+        await ctx.reply(
+          "❌ Tasdiqlash bekor qilindi.\n\n" +
+          "Tasdiqlash uchun 'HA' yoki 'YES' deb yozing.\n" +
+          "Bekor qilish uchun /cancel buyrug'ini ishlating.\n\n" +
+          "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+          "❌ Подтверждение отменено.\n\n" +
+          "Напишите 'HA' или 'YES' для подтверждения.\n" +
+          "Используйте /cancel для отмены."
+        );
+      }
+    } catch (error) {
+      BotErrorLogger.logError(error, ctx);
+      await ctx.reply(
+        "❌ Xatolik yuz berdi. Qayta urinib ko'ring.\n\n" +
+        "❌ Произошла ошибка. Попробуйте снова."
+      );
     }
   }
 

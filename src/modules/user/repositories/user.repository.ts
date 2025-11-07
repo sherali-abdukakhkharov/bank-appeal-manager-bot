@@ -40,8 +40,22 @@ export class UserRepository {
     await this.db("user_business_info").insert(data);
   }
 
+  async upsertBusinessInfo(data: UserBusinessInfo): Promise<void> {
+    await this.db("user_business_info")
+      .insert(data)
+      .onConflict("user_id")
+      .merge();
+  }
+
   async createGovernmentInfo(data: UserGovernmentInfo): Promise<void> {
     await this.db("user_government_info").insert(data);
+  }
+
+  async upsertGovernmentInfo(data: UserGovernmentInfo): Promise<void> {
+    await this.db("user_government_info")
+      .insert(data)
+      .onConflict("user_id")
+      .merge();
   }
 
   async findById(id: number): Promise<User | null> {
@@ -80,6 +94,7 @@ export class UserRepository {
           type: null,
           birth_date: null, // Individual-specific field
           additional_phone: null, // Reset optional field
+          district_id: null, // Force re-selection for new role
         });
 
       // Delete business info if exists (CASCADE will handle this automatically)
@@ -89,7 +104,7 @@ export class UserRepository {
       await trx("user_government_info").where("user_id", userId).delete();
 
       // Note: We keep the user record, appeals, and core fields like:
-      // - telegram_id, full_name, phone, district_id, language
+      // - telegram_id, full_name, phone, language
     });
   }
 }
