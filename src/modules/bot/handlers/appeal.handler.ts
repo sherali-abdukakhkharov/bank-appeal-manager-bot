@@ -494,6 +494,8 @@ export class AppealHandler {
         return "🔄";
       case "overdue":
         return "🔴";
+      case "reopened":
+        return "🔄";
       default:
         return "📋";
     }

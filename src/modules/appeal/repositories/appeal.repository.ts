@@ -66,7 +66,7 @@ export class AppealRepository {
   async findActiveByUserId(userId: number): Promise<Appeal | null> {
     const appeal = await this.db("appeals")
       .where("user_id", userId)
-      .whereIn("status", ["new", "in_progress", "forwarded"])
+      .whereIn("status", ["new", "in_progress", "forwarded", "reopened", "overdue"])
       .first();
 
     return appeal || null;
@@ -187,6 +187,8 @@ export class AppealRepository {
     districtId: number,
     statuses: string[],
   ): Promise<Appeal[]> {
+    // This method receives statuses array from handlers, no change needed here
+    // The handlers will pass the correct statuses including 'reopened' and 'overdue'
     return await this.db("appeals")
       .where("district_id", districtId)
       .whereIn("status", statuses)
@@ -310,7 +312,7 @@ export class AppealRepository {
       .toDate();
 
     return await this.db("appeals")
-      .whereIn("status", ["new", "in_progress", "forwarded"])
+      .whereIn("status", ["new", "in_progress", "forwarded", "reopened", "overdue"])
       .where("due_date", "<=", fiveDaysFromNow) // Due within 5 days or overdue
       .orderBy("due_date", "asc");
   }
@@ -393,7 +395,7 @@ export class AppealRepository {
     const overdueResult = await query
       .clone()
       .where("due_date", "<", now)
-      .whereIn("status", ["new", "in_progress", "forwarded"])
+      .whereIn("status", ["new", "in_progress", "forwarded", "reopened", "overdue"])
       .count("* as count")
       .first();
 
@@ -441,6 +443,7 @@ export class AppealRepository {
         "a.due_date",
         "a.closed_at",
         "ans.text as answer_text",
+        "a.rejection_count",
       );
 
     if (districtId) {
@@ -480,6 +483,12 @@ export class AppealRepository {
       throw new Error("Answer not found");
     }
 
+    // Get the appeal to check due date
+    const appeal = await this.findById(answer.appeal_id);
+    if (!appeal) {
+      throw new Error("Appeal not found");
+    }
+
     // Update answer with rejection
     await this.db("appeal_answers")
       .where("id", answerId)
@@ -489,15 +498,36 @@ export class AppealRepository {
         rejected_at: getDateInTashkent().toDate(),
       });
 
-    // Reopen the appeal by changing status back to "new"
+    // Determine status based on due date
+    const now = getDateInTashkent().toDate();
+    const newStatus = appeal.due_date < now ? "overdue" : "reopened";
+
+    // Reopen the appeal by changing status to "reopened" or "overdue"
+    // and increment rejection_count
     await this.db("appeals")
       .where("id", answer.appeal_id)
       .update({
-        status: "new",
+        status: newStatus,
         closed_at: null,
         closed_by_moderator_id: null,
+        rejection_count: this.db.raw("rejection_count + 1"),
       });
 
     return answer.appeal_id;
+  }
+
+  /**
+   * Mark appeals as overdue if their due date has passed
+   * Returns the count of appeals marked as overdue
+   */
+  async markAppealsAsOverdue(): Promise<number> {
+    const now = getDateInTashkent().toDate();
+
+    const result = await this.db("appeals")
+      .whereIn("status", ["new", "in_progress", "forwarded", "reopened"])
+      .where("due_date", "<", now)
+      .update({ status: "overdue" });
+
+    return result;
   }
 }

@@ -31,6 +31,10 @@ export class CronService implements OnModuleInit {
     try {
       this.logger.log("Checking appeal deadlines...");
 
+      // First, mark appeals as overdue if their due date has passed
+      const overdueCount = await this.appealService.markAppealsAsOverdue();
+      this.logger.log(`Marked ${overdueCount} appeals as overdue`);
+
       // Query only appeals that need reminders (5 days or less, including overdue)
       const appealsNeedingReminders = await this.appealService.getAppealsNeedingReminders();
 

@@ -7,10 +7,11 @@ export interface Appeal {
   district_id: number;
   text?: string;
   file_jsons?: FileMetadata[];
-  status: "new" | "in_progress" | "closed" | "forwarded" | "overdue";
+  status: "new" | "in_progress" | "closed" | "forwarded" | "overdue" | "reopened";
   due_date: Date;
   closed_by_moderator_id?: number;
   closed_at?: Date;
+  rejection_count: number;
   created_at: Date;
   updated_at: Date;
 }

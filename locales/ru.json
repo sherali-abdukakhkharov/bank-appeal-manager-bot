@@ -68,6 +68,7 @@
       "status_in_progress": "На рассмотрении",
       "status_closed": "Закрыто",
       "status_forwarded": "Перенаправлено",
+      "status_reopened": "Переоткрыто",
       "status_overdue": "Просрочено"
     },
     "details": {

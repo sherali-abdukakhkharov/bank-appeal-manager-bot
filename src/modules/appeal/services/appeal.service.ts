@@ -255,6 +255,13 @@ export class AppealService {
   }
 
   /**
+   * Mark appeals as overdue if their due date has passed
+   */
+  async markAppealsAsOverdue(): Promise<number> {
+    return await this.appealRepository.markAppealsAsOverdue();
+  }
+
+  /**
    * Approve answer
    */
   async approveAnswer(answerId: number, userId: number): Promise<void> {

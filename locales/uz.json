@@ -68,6 +68,7 @@
       "status_in_progress": "Ko'rib chiqilmoqda",
       "status_closed": "Yopilgan",
       "status_forwarded": "Yo'naltirilgan",
+      "status_reopened": "Qayta ochilgan",
       "status_overdue": "Muddati o'tgan"
     },
     "details": {

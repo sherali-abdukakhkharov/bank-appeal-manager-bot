@@ -44,7 +44,7 @@ export class ModeratorHandler {
     // Fetch active appeals for moderator's district, sorted by nearest deadline
     const appeals = await this.appealService.getAppealsByDistrictAndStatus(
       user.district_id!,
-      ["new", 'in_progress', 'forwarded', 'overdue'],
+      ["new", 'in_progress', 'forwarded', 'reopened', 'overdue'],
     );
 
     if (appeals.length === 0) {
@@ -697,7 +697,7 @@ export class ModeratorHandler {
       // Fetch appeals with optional district filter
       const appeals = await this.appealService.getAllAppeals(
         districtId || undefined,
-        ["new", 'in_progress', 'forwarded', 'overdue'],
+        ["new", 'in_progress', 'forwarded', 'reopened', 'overdue'],
       );
 
       if (appeals.length === 0) {
@@ -860,6 +860,7 @@ export class ModeratorHandler {
         in_progress: language === "uz" ? "Ko'rib chiqilmoqda" : "В обработке",
         closed: language === "uz" ? "Yopilgan" : "Закрытые",
         forwarded: language === "uz" ? "Yo'naltirilgan" : "Перенаправленные",
+        reopened: language === "uz" ? "Qayta ochilgan" : "Переоткрытые",
         overdue: language === "uz" ? "Muddati o'tgan" : "Просроченные",
       };
 
@@ -984,6 +985,11 @@ export class ModeratorHandler {
           key: "answer_text",
           width: 40,
         },
+        {
+          header: language === "uz" ? "Rad etish soni" : "Количество отклонений",
+          key: "rejection_count",
+          width: 18,
+        },
       ];
 
       // Add rows
@@ -1025,6 +1031,7 @@ export class ModeratorHandler {
           due_date: appeal.due_date ? formatDate(appeal.due_date) : "",
           closed_at: appeal.closed_at ? formatDateTime(appeal.closed_at) : "",
           answer_text: appeal.answer_text || "",
+          rejection_count: appeal.rejection_count || 0,
         });
       });
 
