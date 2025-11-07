@@ -950,6 +950,11 @@ export class ModeratorHandler {
           width: 15,
         },
         {
+          header: language === "uz" ? "Foydalanuvchi turi" : "Тип пользователя",
+          key: "user_type_display",
+          width: 25,
+        },
+        {
           header: language === "uz" ? "Tuman" : "Район",
           key: "district_name",
           width: 20,
@@ -983,6 +988,26 @@ export class ModeratorHandler {
 
       // Add rows
       appeals.forEach((appeal) => {
+        // Format user type display
+        let userTypeDisplay = "";
+        if (appeal.user_type === "government") {
+          // For government users, show the organization name
+          userTypeDisplay =
+            language === "uz"
+              ? appeal.gov_org_name_uz || "Davlat muassasasi"
+              : appeal.gov_org_name_ru || "Государственное учреждение";
+        } else if (appeal.user_type === "individual") {
+          userTypeDisplay =
+            language === "uz" ? "Jismoniy shaxs" : "Физическое лицо";
+        } else if (appeal.user_type === "business") {
+          userTypeDisplay =
+            language === "uz" ? "Yuridik shaxs" : "Юридическое лицо";
+        } else if (appeal.user_type === "moderator") {
+          userTypeDisplay = language === "uz" ? "Moderator" : "Модератор";
+        } else if (appeal.user_type === "admin") {
+          userTypeDisplay = language === "uz" ? "Admin" : "Администратор";
+        }
+
         worksheet.addRow({
           appeal_number: appeal.appeal_number,
           status: this.i18nService.t(
@@ -991,6 +1016,7 @@ export class ModeratorHandler {
           ),
           user_name: appeal.user_name,
           user_phone: appeal.user_phone,
+          user_type_display: userTypeDisplay,
           district_name: appeal.district_name,
           appeal_text: appeal.appeal_text || "",
           created_at: appeal.created_at

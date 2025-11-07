@@ -421,11 +421,20 @@ export class AppealRepository {
       .leftJoin("users as u", "a.user_id", "u.id")
       .leftJoin("districts as d", "a.district_id", "d.id")
       .leftJoin("appeal_answers as ans", "a.id", "ans.appeal_id")
+      .leftJoin("user_government_info as ugi", "u.id", "ugi.user_id")
+      .leftJoin(
+        "government_organizations as gov_org",
+        "ugi.government_org_id",
+        "gov_org.id",
+      )
       .select(
         "a.appeal_number",
         "a.status",
         "u.full_name as user_name",
         "u.phone as user_phone",
+        "u.type as user_type",
+        "gov_org.name_uz as gov_org_name_uz",
+        "gov_org.name_ru as gov_org_name_ru",
         "d.name_uz as district_name",
         "a.text as appeal_text",
         "a.created_at",
