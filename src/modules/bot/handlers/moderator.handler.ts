@@ -5,7 +5,8 @@ import { UserService } from "../../user/services/user.service";
 import { DistrictService } from "../../district/services/district.service";
 import { FileService } from "../../file/services/file.service";
 import { NotificationService } from "../../notification/services/notification.service";
-import { InlineKeyboard, InputFile } from "grammy";
+import { MenuHandler } from "./menu.handler";
+import { InlineKeyboard, InputFile, Keyboard } from "grammy";
 import { formatDate, formatDateTime, getDaysFromNow, getDateInTashkent, parseDate } from "../../../common/utils/date.util";
 import { BotErrorLogger } from "../../../common/utils/bot-error-logger.util";
 import * as ExcelJS from "exceljs";
@@ -18,6 +19,7 @@ export class ModeratorHandler {
     private districtService: DistrictService,
     private fileService: FileService,
     private notificationService: NotificationService,
+    private menuHandler: MenuHandler,
   ) { }
 
   /**
@@ -66,7 +68,7 @@ export class ModeratorHandler {
 
     for (const appeal of appeals) {
       const daysLeft = getDaysFromNow(appeal.due_date);
-      const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+      const urgencyEmoji = await this.getUrgencyEmoji(appeal);
 
       // Get user info
       const appealUser = await this.userService.findById(appeal.user_id);
@@ -133,7 +135,7 @@ export class ModeratorHandler {
 
     // Format appeal details
     const daysLeft = getDaysFromNow(appeal.due_date);
-    const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+    const urgencyEmoji = await this.getUrgencyEmoji(appeal);
 
     let message = language === "uz" ? "📄 *Murojaat tafsilotlari*\n\n" : "📄 *Детали обращения*\n\n";
     message += `*${language === "uz" ? "Raqam" : "Номер"}:* ${appeal.appeal_number}\n`;
@@ -238,13 +240,11 @@ export class ModeratorHandler {
     ctx.session.data.moderatorAnswerFiles = [];
     ctx.session.step = "moderator_close_appeal_files";
 
-    const keyboard = new InlineKeyboard()
-      .text(
-        language === "uz" ? "✅ Javobni yuborish" : "✅ Отправить ответ",
-        "submit_close_appeal",
-      )
-      .row()
-      .text(language === "uz" ? "❌ Bekor qilish" : "❌ Отменить", "cancel_close_appeal");
+    const keyboard = new Keyboard()
+      .text(language === "uz" ? "✅ Javobni yuborish" : "✅ Отправить ответ")
+      .text(language === "uz" ? "❌ Bekor qilish" : "❌ Отменить")
+      .resized()
+      .persistent();
 
     await ctx.reply(
       language === "uz"
@@ -282,8 +282,6 @@ export class ModeratorHandler {
     const telegramId = ctx.from!.id;
     const { language, data } = ctx.session;
 
-    await ctx.answerCallbackQuery();
-
     const user = await this.userService.findByTelegramId(telegramId);
     if (!user) {
       BotErrorLogger.logError('User not found', ctx);
@@ -313,10 +311,11 @@ export class ModeratorHandler {
       ctx.session.data.moderatorAnswerFiles = [];
       ctx.session.step = "main_menu";
 
-      await ctx.editMessageText(
+      await ctx.reply(
         language === "uz"
           ? "✅ Murojaat muvaffaqiyatli yopildi!\n\nFoydalanuvchiga javob yuborildi."
           : "✅ Обращение успешно закрыто!\n\nОтвет отправлен пользователю.",
+        { reply_markup: { remove_keyboard: true } }
       );
 
       // Notify user about closed appeal with answer
@@ -332,10 +331,42 @@ export class ModeratorHandler {
           );
         }
       }
+
+      // Show main menu
+      await this.menuHandler.showMainMenu(ctx, user);
     } catch (error) {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
+  }
+
+  /**
+   * Cancel close appeal flow
+   */
+  async cancelCloseAppeal(ctx: BotContext) {
+    const telegramId = ctx.from!.id;
+    const { language } = ctx.session;
+
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user) {
+      BotErrorLogger.logError('User not found', ctx);
+      await ctx.reply(this.i18nService.t("common.error", language));
+      return;
+    }
+
+    // Clear session data
+    ctx.session.data.moderatorAppealId = undefined;
+    ctx.session.data.moderatorAnswerText = undefined;
+    ctx.session.data.moderatorAnswerFiles = [];
+    ctx.session.step = "main_menu";
+
+    await ctx.reply(
+      language === "uz" ? "❌ Bekor qilindi." : "❌ Отменено.",
+      { reply_markup: { remove_keyboard: true } }
+    );
+
+    // Show main menu
+    await this.menuHandler.showMainMenu(ctx, user);
   }
 
   /**
@@ -399,6 +430,10 @@ export class ModeratorHandler {
     }
 
     try {
+      // Get appeal before forwarding to capture old district
+      const appealBeforeForward = await this.appealService.getAppealById(appealId);
+      const oldDistrictId = appealBeforeForward?.district_id;
+
       await this.appealService.forwardAppeal(appealId, targetDistrictId, user.id);
 
       const district = await this.districtService.findDistrictById(targetDistrictId);
@@ -417,6 +452,7 @@ export class ModeratorHandler {
           appeal,
           targetDistrictId,
           user,
+          oldDistrictId,
         );
 
         // Notify user about forwarding
@@ -539,7 +575,7 @@ export class ModeratorHandler {
 
         // Format appeal details
         const daysLeft = getDaysFromNow(appeal.due_date);
-        const urgencyEmoji = daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+        const urgencyEmoji = await this.getUrgencyEmoji(appeal);
 
         let message = language === "uz" ? "📄 *Murojaat tafsilotlari*\n\n" : "📄 *Детали обращения*\n\n";
         message += `*${language === "uz" ? "Raqam" : "Номер"}:* ${appeal.appeal_number}\n`;
@@ -740,8 +776,7 @@ export class ModeratorHandler {
         // Single district view - show detailed list
         for (const appeal of appeals) {
           const daysLeft = getDaysFromNow(appeal.due_date);
-          const urgencyEmoji =
-            daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+          const urgencyEmoji = await this.getUrgencyEmoji(appeal);
 
           // Get user info
           const appealUser = await this.userService.findById(appeal.user_id);
@@ -773,8 +808,7 @@ export class ModeratorHandler {
           for (const appeal of distAppeals.slice(0, 3)) {
             // Show first 3 per district
             const daysLeft = getDaysFromNow(appeal.due_date);
-            const urgencyEmoji =
-              daysLeft <= 2 ? "🔴" : daysLeft <= 5 ? "🟡" : "🟢";
+            const urgencyEmoji = await this.getUrgencyEmoji(appeal);
             message += `   ${urgencyEmoji} ${appeal.appeal_number} - ${formatDate(appeal.due_date)}\n`;
 
             // Add button
@@ -1061,5 +1095,41 @@ export class ModeratorHandler {
       BotErrorLogger.logError(error, ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
     }
+  }
+
+  /**
+   * Get urgency emoji based on appeal status and extension history
+   * Priority order:
+   * 1. overdue → 🔴 Red
+   * 2. closed → 🟢 Green
+   * 3. forwarded → 🔵 Blue (always)
+   * 4. new/in_progress/reopened + extended → 🔵 Blue
+   * 5. new/in_progress/reopened + NOT extended → 🟡 Yellow
+   */
+  private async getUrgencyEmoji(appeal: any): Promise<string> {
+    // 1. Overdue status - highest priority
+    if (appeal.status === "overdue") {
+      return "🔴";
+    }
+
+    // 2. Closed status
+    if (appeal.status === "closed") {
+      return "🟢";
+    }
+
+    // 3. Forwarded status - always blue
+    if (appeal.status === "forwarded") {
+      return "🔵";
+    }
+
+    // 4. Check if appeal was extended (for new, in_progress, reopened)
+    const wasExtended = await this.appealService.wasAppealExtended(appeal.id);
+
+    if (wasExtended) {
+      return "🔵"; // Extended appeals are blue
+    }
+
+    // 5. Default for new/in_progress/reopened without extension
+    return "🟡"; // Yellow for standard active appeals
   }
 }

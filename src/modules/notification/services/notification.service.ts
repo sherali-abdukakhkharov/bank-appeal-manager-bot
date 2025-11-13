@@ -177,6 +177,7 @@ export class NotificationService {
     appeal: Appeal,
     targetDistrictId: number,
     user: User,
+    fromDistrictId?: number,
   ): Promise<void> {
     if (!this.bot) {
       this.logger.warn("Bot instance not set, cannot send notifications");
@@ -187,9 +188,14 @@ export class NotificationService {
       const moderators = await this.userService.getModeratorsByDistrict(
         targetDistrictId,
       );
-      const district = await this.districtService.findDistrictById(
+      const newDistrict = await this.districtService.findDistrictById(
         targetDistrictId,
       );
+
+      // Get old district if fromDistrictId is provided
+      const oldDistrict = fromDistrictId
+        ? await this.districtService.findDistrictById(fromDistrictId)
+        : null;
 
       for (const moderator of moderators) {
         try {
@@ -199,14 +205,16 @@ export class NotificationService {
                 `📝 Raqam: ${appeal.appeal_number}\n` +
                 `👤 Foydalanuvchi: ${user.full_name}\n` +
                 `📞 Telefon: ${user.phone}\n` +
-                `📍 Yangi tuman: ${district?.name_uz || "N/A"}\n` +
+                (oldDistrict ? `📍 Eski tuman: ${oldDistrict.name_uz}\n` : '') +
+                `📍 Yangi tuman: ${newDistrict?.name_uz || "N/A"}\n` +
                 `📅 Muddat: ${formatDate(appeal.due_date)}\n\n` +
                 `Murojaat sizning tumangizga yo'naltirildi.`
               : `🔄 *Перенаправленное обращение*\n\n` +
                 `📝 Номер: ${appeal.appeal_number}\n` +
                 `👤 Пользователь: ${user.full_name}\n` +
                 `📞 Телефон: ${user.phone}\n` +
-                `📍 Новый район: ${district?.name_ru || "N/A"}\n` +
+                (oldDistrict ? `📍 Старый район: ${oldDistrict.name_ru}\n` : '') +
+                `📍 Новый район: ${newDistrict?.name_ru || "N/A"}\n` +
                 `📅 Срок: ${formatDate(appeal.due_date)}\n\n` +
                 `Обращение перенаправлено в ваш район.`;
 

@@ -89,7 +89,7 @@ export class CronService implements OnModuleInit {
 
       for (const moderator of moderators) {
         try {
-          const urgencyEmoji = daysLeft === 0 ? "🔴" : daysLeft <= 2 ? "🟠" : "🟡";
+          const urgencyEmoji = await this.getUrgencyEmojiForReminder(appeal);
 
           const message =
             moderator.language === "uz"
@@ -168,5 +168,35 @@ export class CronService implements OnModuleInit {
     } catch (error) {
       this.logger.error("Error sending overdue notification:", error);
     }
+  }
+
+  /**
+   * Get urgency emoji based on appeal status and extension history
+   * Priority order for reminders:
+   * 1. overdue → 🔴 Red
+   * 2. forwarded → 🔵 Blue (always)
+   * 3. new/in_progress/reopened + extended → 🔵 Blue
+   * 4. new/in_progress/reopened + NOT extended → 🟡 Yellow
+   */
+  private async getUrgencyEmojiForReminder(appeal: any): Promise<string> {
+    // 1. Overdue status - highest priority
+    if (appeal.status === "overdue") {
+      return "🔴";
+    }
+
+    // 2. Forwarded status - always blue
+    if (appeal.status === "forwarded") {
+      return "🔵";
+    }
+
+    // 3. Check if appeal was extended (for new, in_progress, reopened)
+    const wasExtended = await this.appealService.wasAppealExtended(appeal.id);
+
+    if (wasExtended) {
+      return "🔵"; // Extended appeals are blue
+    }
+
+    // 4. Default for new/in_progress/reopened without extension
+    return "🟡"; // Yellow for standard active appeals
   }
 }

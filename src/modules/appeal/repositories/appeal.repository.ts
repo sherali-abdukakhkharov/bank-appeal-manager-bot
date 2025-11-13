@@ -301,6 +301,18 @@ export class AppealRepository {
   }
 
   /**
+   * Check if an appeal's due date was extended
+   */
+  async wasAppealExtended(appealId: number): Promise<boolean> {
+    const extendLog = await this.db("appeal_logs")
+      .where("appeal_id", appealId)
+      .where("action_type", "extended")
+      .first();
+
+    return !!extendLog;
+  }
+
+  /**
    * Find active appeals that need deadline reminders (5 days or less remaining)
    * This includes overdue appeals
    */

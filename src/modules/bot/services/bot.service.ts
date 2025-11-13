@@ -84,6 +84,7 @@ export class BotService implements OnModuleInit {
       this.districtService,
       this.fileService,
       this.notificationService,
+      this.menuHandler,
     );
 
     // Register handlers
@@ -561,6 +562,16 @@ export class BotService implements OnModuleInit {
         // Moderator actions
         case "moderator_close_appeal_text":
           await this.moderatorHandler.handleCloseAppealText(ctx, text);
+          break;
+        case "moderator_close_appeal_files":
+          // Check if user clicked submit or cancel button
+          if (text === "✅ Javobni yuborish" || text === "✅ Отправить ответ") {
+            await this.moderatorHandler.submitCloseAppeal(ctx);
+          } else if (text === "❌ Bekor qilish" || text === "❌ Отменить") {
+            await this.moderatorHandler.cancelCloseAppeal(ctx);
+          } else {
+            await this.moderatorHandler.handleCloseAppealFiles(ctx);
+          }
           break;
         case "moderator_extend_due_date":
           await this.moderatorHandler.handleExtendDueDate(ctx, text);

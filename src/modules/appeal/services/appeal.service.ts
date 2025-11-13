@@ -208,6 +208,13 @@ export class AppealService {
   }
 
   /**
+   * Check if an appeal's due date was extended
+   */
+  async wasAppealExtended(appealId: number): Promise<boolean> {
+    return await this.appealRepository.wasAppealExtended(appealId);
+  }
+
+  /**
    * Get appeals that need deadline reminders (5 days or less remaining)
    */
   async getAppealsNeedingReminders(): Promise<Appeal[]> {
