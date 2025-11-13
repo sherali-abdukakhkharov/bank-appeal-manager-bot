@@ -113,12 +113,14 @@ export class ModeratorHandler {
       return;
     }
 
-    const appeal = await this.appealService.getAppealById(appealId);
-    if (!appeal) {
-      BotErrorLogger.logError('appeal not found', ctx);
+    const details = await this.appealService.getAppealDetails(appealId);
+    if (!details) {
+      BotErrorLogger.logError('appeal details not found', ctx);
       await ctx.reply(this.i18nService.t("common.error", language));
       return;
     }
+
+    const { appeal, answer, logs } = details;
 
     // Check if moderator has access to this appeal
     if (
@@ -151,6 +153,17 @@ export class ModeratorHandler {
 
     if (appeal.file_jsons && appeal.file_jsons.length > 0) {
       message += `*${language === "uz" ? "Fayllar" : "Файлы"}:* ${appeal.file_jsons.length} ${language === "uz" ? "ta" : "шт."}\n`;
+    }
+
+    // Show history if exists
+    if (logs && logs.length > 0) {
+      message += language === "uz" ? `\n📜 *Tarix*:\n\n` : `\n📜 *История*:\n\n`;
+
+      for (const log of logs) {
+        const logMessage = await this.formatLogEntry(log, language);
+        message += `${logMessage}\n`;
+      }
+      message += `\n`;
     }
 
     // Create action buttons
@@ -1131,5 +1144,52 @@ export class ModeratorHandler {
 
     // 5. Default for new/in_progress/reopened without extension
     return "🟡"; // Yellow for standard active appeals
+  }
+
+  /**
+   * Format log entry for display
+   */
+  private async formatLogEntry(log: any, language: string): Promise<string> {
+    const timestamp = formatDateTime(log.created_at);
+
+    switch (log.action_type) {
+      case "created":
+        return language === "uz"
+          ? `🆕 ${timestamp} - Murojaat yaratildi`
+          : `🆕 ${timestamp} - Обращение создано`;
+
+      case "forwarded": {
+        const fromDistrict = await this.districtService.findDistrictById(log.from_district_id);
+        const toDistrict = await this.districtService.findDistrictById(log.to_district_id);
+        const fromName = language === "uz" ? fromDistrict?.name_uz : fromDistrict?.name_ru;
+        const toName = language === "uz" ? toDistrict?.name_uz : toDistrict?.name_ru;
+
+        return language === "uz"
+          ? `🔄 ${timestamp} - ${fromName} dan ${toName} ga yo'naltirildi`
+          : `🔄 ${timestamp} - Перенаправлено из ${fromName} в ${toName}`;
+      }
+
+      case "extended": {
+        const oldDate = formatDate(log.old_due_date);
+        const newDate = formatDate(log.new_due_date);
+
+        return language === "uz"
+          ? `📅 ${timestamp} - Muddat uzaytirildi: ${oldDate} → ${newDate}`
+          : `📅 ${timestamp} - Срок продлен: ${oldDate} → ${newDate}`;
+      }
+
+      case "closed":
+        return language === "uz"
+          ? `✅ ${timestamp} - Murojaat yopildi`
+          : `✅ ${timestamp} - Обращение закрыто`;
+
+      case "reopened":
+        return language === "uz"
+          ? `🔄 ${timestamp} - Murojaat qayta ochildi`
+          : `🔄 ${timestamp} - Обращение переоткрыто`;
+
+      default:
+        return `${timestamp} - ${log.action_type}`;
+    }
   }
 }
