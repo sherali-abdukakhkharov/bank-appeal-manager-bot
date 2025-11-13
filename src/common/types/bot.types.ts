@@ -96,7 +96,7 @@ export interface SessionData {
       file_name?: string;
       file_size?: number;
       mime_type?: string;
-      file_type: "document" | "photo" | "video" | "audio" | "voice";
+      file_type: "document" | "photo" | "video" | "audio" | "voice" | "video_note";
     }>;
     appealCustomNumber?: string;
 
@@ -109,7 +109,7 @@ export interface SessionData {
       file_name?: string;
       file_size?: number;
       mime_type?: string;
-      file_type: "document" | "photo" | "video" | "audio" | "voice";
+      file_type: "document" | "photo" | "video" | "audio" | "voice" | "video_note";
     }>;
 
     // Approval requests

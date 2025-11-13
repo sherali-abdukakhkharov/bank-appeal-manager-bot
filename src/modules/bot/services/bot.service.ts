@@ -659,6 +659,16 @@ export class BotService implements OnModuleInit {
       }
     });
 
+    // Handle video note (rounded video) uploads during appeal creation and moderator answers
+    this.bot.on("message:video_note", async (ctx) => {
+      const { step } = ctx.session;
+      if (step === "appeal_text_input") {
+        await this.appealHandler.handleAppealContent(ctx);
+      } else if (step === "moderator_close_appeal_files") {
+        await this.moderatorHandler.handleCloseAppealFiles(ctx);
+      }
+    });
+
     // Error handler with comprehensive logging
     this.bot.catch((err) => {
       const errorContext = err.ctx as BotContext;

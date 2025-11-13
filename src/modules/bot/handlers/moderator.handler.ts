@@ -206,6 +206,9 @@ export class ModeratorHandler {
             case "video":
               await ctx.api.sendVideo(ctx.chat!.id, file.file_id, { caption });
               break;
+            case "video_note":
+              await ctx.api.sendVideoNote(ctx.chat!.id, file.file_id);
+              break;
             case "audio":
               await ctx.api.sendAudio(ctx.chat!.id, file.file_id, { caption });
               break;
@@ -645,6 +648,9 @@ export class ModeratorHandler {
                   break;
                 case "video":
                   await ctx.api.sendVideo(ctx.chat!.id, file.file_id, { caption });
+                  break;
+                case "video_note":
+                  await ctx.api.sendVideoNote(ctx.chat!.id, file.file_id);
                   break;
                 case "audio":
                   await ctx.api.sendAudio(ctx.chat!.id, file.file_id, { caption });
@@ -1098,7 +1104,7 @@ export class ModeratorHandler {
       const filename = `appeals_${timestamp}.xlsx`;
 
       // Send file
-      await ctx.replyWithDocument(new InputFile(buffer as Buffer, filename), {
+      await ctx.replyWithDocument(new InputFile(new Uint8Array(buffer), filename), {
         caption:
           language === "uz"
             ? `📊 Jami ${appeals.length} ta murojaat`

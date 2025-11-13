@@ -52,7 +52,7 @@ export async function seed(knex: Knex): Promise<void> {
     {
       id: 8,
       name_uz: "Guliston tumani",
-      name_ru: "Город Гулистан",
+      name_ru: "Гулистанский район",
       is_central: false,
     },
     {

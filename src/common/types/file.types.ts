@@ -8,7 +8,7 @@ export interface FileMetadata {
   file_name?: string; // Original file name (if available)
   file_size?: number; // File size in bytes
   mime_type?: string; // MIME type
-  file_type: "document" | "photo" | "video" | "audio" | "voice";
+  file_type: "document" | "photo" | "video" | "audio" | "voice" | "video_note";
 }
 
 /**

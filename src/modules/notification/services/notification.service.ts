@@ -137,6 +137,9 @@ export class NotificationService {
                   caption,
                 });
                 break;
+              case "video_note":
+                await this.bot.api.sendVideoNote(user.telegram_id, file.file_id);
+                break;
               case "audio":
                 await this.bot.api.sendAudio(user.telegram_id, file.file_id, {
                   caption,

@@ -147,6 +147,7 @@ export class BotErrorLogger {
       if (ctx.message.video) return "video_message";
       if (ctx.message.audio) return "audio_message";
       if (ctx.message.voice) return "voice_message";
+      if (ctx.message.video_note) return "video_note_message";
       return "message";
     }
     if ((ctx as any).callbackQuery) return "callback_query";

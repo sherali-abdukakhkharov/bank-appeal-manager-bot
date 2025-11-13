@@ -65,6 +65,15 @@ export class FileService {
       };
     }
 
+    if (message.video_note) {
+      return {
+        file_id: message.video_note.file_id,
+        file_unique_id: message.video_note.file_unique_id,
+        file_size: message.video_note.file_size,
+        file_type: "video_note",
+      };
+    }
+
     return null;
   }
 
