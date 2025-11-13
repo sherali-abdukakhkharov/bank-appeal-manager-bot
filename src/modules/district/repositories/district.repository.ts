@@ -30,6 +30,20 @@ export class DistrictRepository {
     return district || null;
   }
 
+  async getCentralDistrictOnly(): Promise<District[]> {
+    return await this.db("districts")
+      .where("is_central", true)
+      .select("*")
+      .orderBy("name_uz", "asc");
+  }
+
+  async getNonCentralDistricts(): Promise<District[]> {
+    return await this.db("districts")
+      .where("is_central", false)
+      .select("*")
+      .orderBy("name_uz", "asc");
+  }
+
   async getAllGovernmentOrganizations(): Promise<GovernmentOrganization[]> {
     return await this.db("government_organizations")
       .select("*")

@@ -545,7 +545,21 @@ export class RegistrationHandler {
     ctx.session.data.phone = phone;
     ctx.session.step = "moderator_district";
 
-    const districts = await this.districtService.getAllDistricts();
+    // Filter districts based on user type
+    const userType = ctx.session.data.userType;
+    let districts;
+
+    if (userType === "admin") {
+      // Admin: show only main office (central district)
+      districts = await this.districtService.getCentralDistrictOnly();
+    } else if (userType === "moderator") {
+      // Moderator: show all districts EXCEPT main office
+      districts = await this.districtService.getNonCentralDistricts();
+    } else {
+      // Fallback to all districts
+      districts = await this.districtService.getAllDistricts();
+    }
+
     const keyboard = createDistrictKeyboard(districts, language);
 
     await ctx.reply(

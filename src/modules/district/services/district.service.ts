@@ -21,6 +21,14 @@ export class DistrictService {
     return await this.districtRepository.getCentralDistrict();
   }
 
+  async getCentralDistrictOnly(): Promise<District[]> {
+    return await this.districtRepository.getCentralDistrictOnly();
+  }
+
+  async getNonCentralDistricts(): Promise<District[]> {
+    return await this.districtRepository.getNonCentralDistricts();
+  }
+
   async getAllGovernmentOrganizations(): Promise<GovernmentOrganization[]> {
     return await this.districtRepository.getAllGovernmentOrganizations();
   }
