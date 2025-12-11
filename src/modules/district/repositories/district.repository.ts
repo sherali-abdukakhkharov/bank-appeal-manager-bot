@@ -8,7 +8,7 @@ import {
 
 @Injectable()
 export class DistrictRepository {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(private databaseService: DatabaseService) { }
 
   get db() {
     return this.databaseService.knex;
@@ -47,7 +47,7 @@ export class DistrictRepository {
   async getAllGovernmentOrganizations(): Promise<GovernmentOrganization[]> {
     return await this.db("government_organizations")
       .select("*")
-      .orderBy("name_uz", "asc");
+      .orderBy("id");
   }
 
   async findGovOrgById(id: number): Promise<GovernmentOrganization | null> {
