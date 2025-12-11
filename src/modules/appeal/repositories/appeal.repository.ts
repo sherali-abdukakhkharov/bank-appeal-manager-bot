@@ -449,6 +449,7 @@ export class AppealRepository {
         "u.type as user_type",
         "gov_org.name_uz as gov_org_name_uz",
         "gov_org.name_ru as gov_org_name_ru",
+        "ugi.custom_org_name as custom_org_name",
         "d.name_uz as district_name",
         "a.text as appeal_text",
         "a.created_at",

@@ -410,10 +410,40 @@ export class RegistrationHandler {
   async handleGovOrgSelection(ctx: BotContext, orgId: number) {
     const { language } = ctx.session;
     ctx.session.data.governmentOrgId = orgId;
-    ctx.session.step = "government_full_name";
 
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText(
+
+    // Check if "Boshqalar/Другие" (Others) was selected (id: 5)
+    if (orgId === 5) {
+      ctx.session.step = "government_custom_org_name";
+      await ctx.editMessageText(
+        this.i18nService.t("registration.enter_custom_org_name", language),
+      );
+    } else {
+      ctx.session.step = "government_full_name";
+      await ctx.editMessageText(
+        this.i18nService.t("registration.enter_full_name", language),
+      );
+    }
+  }
+
+  async handleGovernmentCustomOrgName(ctx: BotContext, text: string) {
+    const { language } = ctx.session;
+
+    // Validate custom org name (minimum 2 characters)
+    if (text.trim().length < 2) {
+      await ctx.reply(
+        language === "uz"
+          ? "Tashkilot nomi kamida 2 ta belgidan iborat bo'lishi kerak."
+          : "Название организации должно содержать не менее 2 символов.",
+      );
+      return;
+    }
+
+    ctx.session.data.customOrgName = text.trim();
+    ctx.session.step = "government_full_name";
+
+    await ctx.reply(
       this.i18nService.t("registration.enter_full_name", language),
     );
   }
@@ -655,6 +685,7 @@ export class RegistrationHandler {
           user = await this.userService.updateGovernmentUser(existingUser.id, userDto, {
             government_org_id: data.governmentOrgId!,
             position: data.position!,
+            custom_org_name: data.customOrgName,
           });
         } else {
           user = await this.userService.updateUser(existingUser.id, userDto);
@@ -670,6 +701,7 @@ export class RegistrationHandler {
           user = await this.userService.createGovernmentUser(userDto, {
             government_org_id: data.governmentOrgId!,
             position: data.position!,
+            custom_org_name: data.customOrgName,
           });
         } else {
           user = await this.userService.createUser(userDto);

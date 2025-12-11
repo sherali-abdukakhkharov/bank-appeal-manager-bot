@@ -21,6 +21,7 @@ export type RegistrationStep =
   | "business_bank_district"
   // Government
   | "government_organization"
+  | "government_custom_org_name"
   | "government_full_name"
   | "government_position"
   | "government_phone"
@@ -84,6 +85,7 @@ export interface SessionData {
     // Government specific
     governmentOrgId?: number;
     position?: string;
+    customOrgName?: string;
 
     // Moderator/Admin specific
     mfoCode?: string;

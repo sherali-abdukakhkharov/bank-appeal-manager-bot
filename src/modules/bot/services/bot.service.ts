@@ -525,6 +525,9 @@ export class BotService implements OnModuleInit {
           break;
 
         // Government registration
+        case "government_custom_org_name":
+          await this.registrationHandler.handleGovernmentCustomOrgName(ctx, text);
+          break;
         case "government_full_name":
           await this.registrationHandler.handleGovernmentFullName(ctx, text);
           break;

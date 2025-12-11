@@ -33,4 +33,5 @@ export interface UserGovernmentInfo {
   user_id: number;
   government_org_id: number;
   position: string;
+  custom_org_name?: string;
 }

@@ -1051,10 +1051,15 @@ export class ModeratorHandler {
         let userTypeDisplay = "";
         if (appeal.user_type === "government") {
           // For government users, show the organization name
-          userTypeDisplay =
-            language === "uz"
-              ? appeal.gov_org_name_uz || "Davlat muassasasi"
-              : appeal.gov_org_name_ru || "Государственное учреждение";
+          // Check if custom org name exists (for "Boshqalar/Другие")
+          if (appeal.custom_org_name) {
+            userTypeDisplay = appeal.custom_org_name;
+          } else {
+            userTypeDisplay =
+              language === "uz"
+                ? appeal.gov_org_name_uz || "Davlat muassasasi"
+                : appeal.gov_org_name_ru || "Государственное учреждение";
+          }
         } else if (appeal.user_type === "individual") {
           userTypeDisplay =
             language === "uz" ? "Jismoniy shaxs" : "Физическое лицо";

@@ -26,6 +26,11 @@ export async function seed(knex: Knex): Promise<void> {
       name_uz: "Soliq",
       name_ru: "Налоговая",
     },
+    {
+      id: 5,
+      name_uz: "Boshqalar",
+      name_ru: "Другие",
+    },
   ]);
 
   // Reset sequence
